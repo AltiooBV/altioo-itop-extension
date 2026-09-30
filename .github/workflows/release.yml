@@ -1,0 +1,244 @@
+name: Release
+
+# What a published release has to be: an archive built by a machine from a tag,
+# with a checksum somebody can verify and an inventory of everything vendor/
+# carries. Building it by hand on a laptop is how an archive comes to contain
+# something nobody meant to ship.
+
+on:
+  push:
+    tags: ['v*']
+  # Same build, no publication - so the packaging can be exercised before a tag
+  # exists rather than discovered to be broken by the tag itself.
+  workflow_dispatch:
+
+# Floor for any job this workflow gains later that doesn't set its own block -
+# ci.yml, itop-matrix.yml and upgrade.yml all keep this same default. Without
+# it, a job with no permissions: key of its own inherits the repository
+# default, which can be broader than read-only.
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    name: Build, checksum and publish the archive
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # What attest-build-provenance signs with. The checksum answers "is this the
+      # file I downloaded", which is a question about the wire; provenance answers
+      # "did this repository's CI build it", which is the question an operator
+      # unzipping into a privileged directory of a live instance actually has.
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          # The floor this extension claims. Building on the oldest supported
+          # PHP is what keeps the shipped autoloader loadable on all of them.
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: The tag and the module must declare the same version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          declared=$(sed -n 's#.*<version>\(.*\)</version>.*#\1#p' extension.xml | head -1)
+          test "$tag" = "$declared" \
+            || { echo "tag $GITHUB_REF_NAME does not match extension.xml ($declared)"; exit 1; }
+
+      # The changelog is the other declaration of a version, and the only
+      # record of what that version contains. Without a gate it drifts both
+      # ways at once: a dated heading with no tag behind it asserts a release
+      # that has not happened, while the entries that will actually ship keep
+      # accumulating under [Unreleased].
+      #
+      # Both halves are checked because either one alone still misleads: a
+      # dated heading over a half-empty section names a release whose
+      # contents are listed somewhere else, and entries left under
+      # [Unreleased] ship inside the tag without appearing in its notes.
+      #
+      # The date this enforces is also what starts the support window in
+      # SECURITY.md - see doc/release-checklist.md, "Dates".
+      - name: The changelog must carry a dated heading for this version, and nothing left over
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          esc="${tag//./\\.}"
+
+          grep -qE "^## \[${esc}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md \
+            || { echo "CHANGELOG.md has no '## [$tag] - YYYY-MM-DD' heading"; exit 1; }
+
+          if sed -n '/^## \[Unreleased\]/,/^## \[/{ /^## \[/d; p; }' CHANGELOG.md \
+             | grep -qE '^[[:space:]]*[-*] '; then
+            echo "CHANGELOG.md still lists entries under [Unreleased]; fold them into [$tag]"
+            exit 1
+          fi
+
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict --no-check-publish
+
+      # ci.yml runs this too, on branches and pull requests - refs a tag push
+      # matches neither of. It is also the one check whose verdict changes with
+      # no commit: an advisory published against a locked version is true of a
+      # tree nobody has touched since CI was last green. mcp/sdk is pre-1.0 and
+      # vendored into the archive that operators unzip without ever running
+      # composer, so this is the last moment anything looks.
+      - name: Advisories against the locked versions
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --no-progress
+          composer audit --locked
+
+      # What store users unzip into extensions/: production dependencies only,
+      # nothing from require-dev, and vendor/ present because they will never
+      # run composer themselves.
+      - name: Build the production vendor tree
+        run: composer install --no-dev --no-interaction --no-progress --optimize-autoloader
+
+      - name: Unit suite against the shipped tree
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --no-progress
+          composer test:unit
+          composer install --no-dev --no-interaction --no-progress --optimize-autoloader
+
+      # vendor/ ships, so what is in it is not an implementation detail - it is
+      # the audit surface, and an operator asked to install this is entitled to
+      # a list of what they are installing.
+      - name: Bill of materials and licence inventory
+        run: |
+          set -euo pipefail
+          # Reproducible: the same lock produces the same document. Assigned and
+          # exported separately so a failing `git log` isn't masked by export's
+          # own exit status.
+          SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+          export SOURCE_DATE_EPOCH
+          composer sbom > sbom.cyclonedx.json
+          composer licenses --no-dev --format=json > licenses.json
+          php -r 'json_decode(file_get_contents("sbom.cyclonedx.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("licenses.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Assemble the archive
+        id: archive
+        run: |
+          set -euo pipefail
+          module=$(sed -n 's#.*<extension_code>\(.*\)</extension_code>.*#\1#p' extension.xml | head -1)
+          version=$(sed -n 's#.*<version>\(.*\)</version>.*#\1#p' extension.xml | head -1)
+          name="${module}-${version}"
+
+          # The module has to unzip as extensions/<module code>/, so the
+          # directory name inside the archive is the module code and nothing else.
+          mkdir -p "build/${module}"
+          # exclude.txt is the single source of truth for what stays out; rsync
+          # reads it directly so the list cannot drift from what CI does.
+          rsync -a --exclude-from=exclude.txt \
+                --exclude 'build' --exclude 'sbom.cyclonedx.json' --exclude 'licenses.json' \
+                ./ "build/${module}/"
+
+          # The archive carries its own inventory: an instance found in a year's
+          # time can answer what it is running without reaching the internet.
+          cp sbom.cyclonedx.json licenses.json "build/${module}/"
+
+          ( cd build && zip -qr "../${name}.zip" "${module}" )
+          sha256sum "${name}.zip" > "${name}.zip.sha256"
+
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "module=${module}" >> "$GITHUB_OUTPUT"
+          cat "${name}.zip.sha256"
+
+      - name: The archive contains what it is supposed to, and nothing else
+        env:
+          MODULE_CODE: ${{ steps.archive.outputs.module }}
+        run: |
+          set -euo pipefail
+          cd "build/${MODULE_CODE}"
+          # .htaccess and web.config are this module's entire HTTP guard, and
+          # each says in its own comments to keep it in step with the other.
+          # Neither was in this list. A guard missing from the archive does not
+          # fail closed: the compiled copy in env-<env>/ sits under a
+          # configuration that allows PHP for the whole subtree, so src/ and
+          # vendor/ would be served, quietly, from an instance that installed
+          # cleanly.
+          for f in index.php README.md SECURITY.md CHANGELOG.md CONTRIBUTING.md LICENSE \
+                   .htaccess web.config \
+                   extension.xml "module.${MODULE_CODE}.php" "datamodel.${MODULE_CODE}.xml" \
+                   "datamodel.${MODULE_CODE}.dict.en-us.xml" "datamodel.${MODULE_CODE}.dict.fr-fr.xml" \
+                   doc/clients.md vendor/autoload.php tests/php-unit-tests/bootstrap.php \
+                   sbom.cyclonedx.json licenses.json; do
+            test -e "$f" || { echo "missing from the package: $f"; exit 1; }
+          done
+          test ! -d vendor/phpunit || { echo "require-dev leaked into vendor/"; exit 1; }
+          test ! -e .git || { echo ".git leaked into the package"; exit 1; }
+          test ! -d tools || { echo "tools/ leaked into the package"; exit 1; }
+
+          # The package declares one licence. The doc/ guides and
+          # doc/itop-branch-notes.md are Creative Commons and shipped by
+          # omission - exclude.txt reasoned about README.md, doc/, tests/ and
+          # tools/, and nothing here asserted either their presence or their
+          # absence. ModuleMetadataTest checks the same rule against the
+          # working tree; this checks the zip that was actually built.
+          if grep -rlE 'https?://(www\.)?creativecommons\.org/licenses/' . \
+               --include='*.md' --include='*.php' --include='*.xml'; then
+            echo "the files above are not AGPL-only and must not ship; list them in exclude.txt"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: |
+            ${{ steps.archive.outputs.name }}.zip
+            ${{ steps.archive.outputs.name }}.zip.sha256
+            sbom.cyclonedx.json
+            licenses.json
+
+      # The checksum proves the file did not change in transit. It does not
+      # prove this repository built it - anyone can publish a zip and a
+      # matching .sha256. This signs the archive against the workflow, the
+      # commit and the repository that produced it, verifiable with
+      # `gh attestation verify <archive>.zip --repo <owner>/<repo>`.
+      - name: Attest that this repository's CI built the archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.archive.outputs.name }}.zip
+
+      # The provenance attestation above covers the zip. sbom.cyclonedx.json
+      # ships beside it - inside the archive too - and an approver reading
+      # doc/security-summary.md §1 has no way to tell it apart from a document
+      # anyone could have dropped into the release. This binds it to the
+      # archive's own digest the same way: the subject is the zip, not the
+      # SBOM file, so verification is against the zip too, distinguished from
+      # the provenance attestation above by its predicate type -
+      # `gh attestation verify <archive>.zip --repo <owner>/<repo>
+      # --predicate-type https://cyclonedx.org/bom` (that URI is
+      # actions/attest-sbom's, confirmed in its source rather than assumed;
+      # the provenance step above needs no such flag because
+      # https://slsa.dev/provenance/v1 is `gh attestation verify`'s default).
+      - name: Attest the bill of materials
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.archive.outputs.name }}.zip
+          sbom-path: sbom.cyclonedx.json
+
+      # The checksum is published beside the archive so that "the file I
+      # downloaded is the file CI built" is a question with an answer.
+      - name: Attach everything to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: |
+            ${{ steps.archive.outputs.name }}.zip
+            ${{ steps.archive.outputs.name }}.zip.sha256
+            sbom.cyclonedx.json
+            licenses.json
