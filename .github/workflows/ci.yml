@@ -138,6 +138,9 @@ jobs:
 
   tests:
     name: Unit suite on PHP ${{ matrix.php }}
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -185,6 +188,9 @@ jobs:
 
   audit:
     name: Dependency audit
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -219,6 +225,9 @@ jobs:
   # a missing directory - the job stays green and says why in its step list.
   sast:
     name: Static analysis (Psalm)
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -277,6 +286,9 @@ jobs:
   # container; timeout-minutes is generous around that.
   progpilot:
     name: Vulnerability scan (Progpilot)
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -305,6 +317,9 @@ jobs:
 
   package:
     name: Release archive builds
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

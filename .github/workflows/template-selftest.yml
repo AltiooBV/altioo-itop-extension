@@ -1,0 +1,55 @@
+name: Template self-test
+# This repository is a template, not an extension: it has no composer.json and
+# no extension.xml, so the jobs in ci.yml and itop-matrix.yml that need them
+# skip here (each says so in its `if:`). This workflow is what tests the
+# harness instead. It builds what an adopter would have - the template,
+# instantiated, with the minimal extension in .github/template-selftest/ laid
+# on top - and runs tools/ci/local/run.sh against it: the same tools/ci/
+# scripts an extension's own workflows call, in the containers run.sh builds.
+#
+# Guarded to this repository: an extension created from the template keeps
+# this file and never runs it.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, like the matrix an adopter runs: a new iTop patch is when the
+    # harness stops working without anything in this repository changing.
+    - cron: '17 5 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: Harness, on an instantiated extension
+    if: github.repository == 'AltiooBV/altioo-itop-extension'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Only for the composer.lock assemble.sh resolves; everything after this
+      # runs inside run.sh's containers.
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Assemble the instantiated extension
+        run: .github/template-selftest/assemble.sh "$RUNNER_TEMP/selftest"
+
+      - name: Unit job (ci.yml's tests and lint)
+        run: '"$RUNNER_TEMP/selftest/tools/ci/local/run.sh" unit 8.2'
+
+      # resolve-itop-versions.php lists Combodo's tags through the GitHub API;
+      # authenticated, it is not subject to the shared runners' anonymous limit.
+      - name: Install matrix (itop-matrix.yml), iTop 3.2 on PHP 8.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: '"$RUNNER_TEMP/selftest/tools/ci/local/run.sh" matrix 3.2 8.2'

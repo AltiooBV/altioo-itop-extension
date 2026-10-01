@@ -1,0 +1,24 @@
+{
+  "name": "altioo/altioo-template-selftest",
+  "type": "itop-extension",
+  "description": "The minimal extension the altioo-itop-extension template runs its own CI harness against.",
+  "license": "AGPL-3.0-or-later",
+  "require": {
+    "php": ">=8.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6"
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "test": "phpunit",
+    "test:unit": "phpunit --testsuite unit",
+    "sbom": "php tools/sbom.php"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2.0"
+    }
+  }
+}

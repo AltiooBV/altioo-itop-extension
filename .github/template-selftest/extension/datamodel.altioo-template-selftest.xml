@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<itop_design xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="3.2">
+  <!-- One dictionary entry, so the compiled environment has something of this module's in it. -->
+  <dictionaries>
+    <dictionary id="EN US">
+      <entries>
+        <entry id="AltiooTemplateSelftest:Label" _delta="force"><![CDATA[Template self-test]]></entry>
+      </entries>
+    </dictionary>
+  </dictionaries>
+</itop_design>
