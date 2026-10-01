@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<itop_design xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="3.2">
+  <!-- Combodo's module validation suite requires every EN US entry to have an FR FR counterpart. -->
+  <dictionaries>
+    <dictionary id="FR FR">
+      <entries>
+        <entry id="AltiooTemplateSelftest:Label" _delta="force"><![CDATA[Auto-test du modèle]]></entry>
+      </entries>
+    </dictionary>
+  </dictionaries>
+</itop_design>

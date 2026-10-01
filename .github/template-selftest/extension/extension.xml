@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension format="1.0">
+  <extension_code>altioo-template-selftest</extension_code>
+  <version>0.0.1</version>
+  <label><![CDATA[Template self-test]]></label>
+  <description><![CDATA[The minimal extension the altioo-itop-extension template runs its own CI harness against. Not for installation anywhere else.]]></description>
+  <mandatory>false</mandatory>
+  <more_info_url>https://github.com/AltiooBV/altioo-itop-extension</more_info_url>
+</extension>

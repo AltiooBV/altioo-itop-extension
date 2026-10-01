@@ -165,11 +165,17 @@ need_runner() {
 		local sRunning sCurrent
 		sRunning=$(docker inspect "$sName" --format '{{.Image}}' 2>/dev/null) || sRunning=
 		sCurrent=$(docker image inspect "$(image_for "$sPhp")" --format '{{.Id}}' 2>/dev/null) || sCurrent=
-		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ]; then
+		# The same path is not always the same directory: one deleted and
+		# recreated under the same name leaves the bind on the old, empty one,
+		# and every step then reports "composer.json not found".
+		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ] \
+			&& docker exec "$sName" test -f /src/extension.xml; then
 			return
 		fi
 		if [ "$sMounted" != "$REPO" ]; then
 			say "$sName is bound to ${sMounted:-nothing}, not $REPO - recreating it"
+		elif [ "$sRunning" = "$sCurrent" ]; then
+			say "$sName no longer sees $REPO (recreated since it started) - recreating it"
 		else
 			say "$sName runs another image than $(image_for "$sPhp") - recreating it"
 		fi
@@ -183,6 +189,7 @@ need_runner() {
 		-v "$REPO":/src:ro \
 		-e DB_HOST="$DB_CONTAINER" -e DB_PORT=3306 -e DB_USER=root -e DB_PWD="$DB_PWD" \
 		-e ITOP_ADMIN_USER="$ITOP_ADMIN_USER" -e ITOP_ADMIN_PWD="$ITOP_ADMIN_PWD" \
+		-e GITHUB_TOKEN \
 		-e HOME=/work/.home \
 		"$(image_for "$sPhp")" sleep infinity >/dev/null
 }
@@ -227,7 +234,12 @@ composer validate --strict --no-check-publish
 composer install --no-interaction --no-progress
 composer check-platform-reqs
 phpcs
-psalm --php-version=8.2
+# As in ci.yml: Psalm reads src/, and an extension without one has nothing to analyse.
+if [ -n "$(find src -name '*.php' 2>/dev/null | head -1)" ]; then
+	psalm --php-version=8.2
+else
+	echo "no PHP under src/: Psalm skipped"
+fi
 composer test:unit
 INNER
 	run_script "$sPhp" unit.sh "/work/unit-$sPhp"
@@ -301,15 +313,22 @@ module_integration() {
 	php vendor/bin/phpunit --no-configuration --bootstrap unittestautoload.php --testdox \
 		"$ITOP_DIR/env-production/$sModule/tests/php-unit-tests/Integration"
 }
-step "the module's integration suite" module_integration
+if [ -d tests/php-unit-tests/Integration ]; then
+	step "the module's integration suite" module_integration
+fi
 
 smoke() {
 	cd "$sDest" || return 1
 	local sToken
 	sToken=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER" | tail -1) || return 1
-	ITOP_TOKEN="$sToken" tools/ci/http-smoke.sh
+	# Only an extension with an entry point has an endpoint to request.
+	if [ -f index.php ]; then
+		ITOP_TOKEN="$sToken" tools/ci/http-smoke.sh
+	else
+		echo "no index.php: no HTTP entry point to smoke"
+	fi
 }
-step "datamodel checks, then the endpoint over HTTP" smoke
+step "datamodel checks, then the endpoint over HTTP if there is one" smoke
 
 printf '\n%s\n' '=============================================================='
 printf '%s\n' "${aResults[@]}"
@@ -337,6 +356,7 @@ set -euo pipefail
 sItopDir=$1; sModule=$2
 sTests="$sItopDir/env-production/$sModule/tests/php-unit-tests"
 [ -d "$sTests" ] || { echo "no iTop installed at $sItopDir - run 'matrix' first" >&2; exit 1; }
+[ -d /src/tests/php-unit-tests/Integration ] || { echo "this extension has no integration suite"; exit 0; }
 
 # The tests are a plain copy inside the compiled environment, so refreshing them
 # from the working tree is the whole update: nothing under tests/ is compiled.

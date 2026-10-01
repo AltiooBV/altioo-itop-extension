@@ -244,13 +244,18 @@ jobs:
           MODULE_SRC: ${{ github.workspace }}/baseline
         run: tools/ci/install-itop.sh
 
+      # The fixture is the extension's own (TEMPLATE-CHECKLIST.md section 5).
+      # Without one, the upgrade itself is still exercised - twice - and the
+      # post-setup smoke below checks what it left.
       - name: Put data, a token and a tuned setting into the instance
+        if: hashFiles('tools/ci/upgrade-fixture.php') != ''
         run: php tools/ci/upgrade-fixture.php "$ITOP_DIR" seed
 
       - name: Upgrade to this working copy
         run: tools/ci/upgrade-module.sh
 
       - name: Is everything still there
+        if: hashFiles('tools/ci/upgrade-fixture.php') != ''
         run: php tools/ci/upgrade-fixture.php "$ITOP_DIR" verify
 
       # §9.7: a failing migration aborts the client's setup run, they fix the
@@ -261,11 +266,20 @@ jobs:
         run: tools/ci/upgrade-module.sh
 
       - name: Is everything still there, still
+        if: hashFiles('tools/ci/upgrade-fixture.php') != ''
         run: php tools/ci/upgrade-fixture.php "$ITOP_DIR" verify
 
       # The upgraded instance, not a freshly installed one, is what a client
       # runs. This is the only place the integration suite meets one.
+      - name: Datamodel checks against the upgraded instance
+        # itop-smoke.php ends with the token module-smoke.php may mint for the
+        # HTTP smoke; only the check lines are kept, so it never reaches the log.
+        run: |
+          set -euo pipefail
+          php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER" | grep -E '^(iTop |module: |  ok |  FAIL |       )'
+
       - name: The integration suite against the upgraded instance
+        if: hashFiles('tests/php-unit-tests/Integration/**/*.php') != ''
         working-directory: ${{ runner.temp }}/itop/tests/php-unit-tests
         run: |
           set -euo pipefail

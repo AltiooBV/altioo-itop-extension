@@ -138,6 +138,9 @@ jobs:
 
   tests:
     name: Unit suite on PHP ${{ matrix.php }}
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -185,6 +188,9 @@ jobs:
 
   audit:
     name: Dependency audit
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -213,8 +219,15 @@ jobs:
   # (psalm.xml explains why), so this job is plain type-correctness analysis,
   # not vulnerability scanning. The progpilot job below is what looks for a
   # vulnerability class in src/.
+  # Both this job and the next scan src/. An extension with no hand-written
+  # PHP there (a theme, a datamodel-only package) has nothing for them to
+  # read, so every step after the checkout is skipped rather than failing on
+  # a missing directory - the job stays green and says why in its step list.
   sast:
     name: Static analysis (Psalm)
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -222,6 +235,7 @@ jobs:
           persist-credentials: false
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        if: hashFiles('src/**/*.php') != ''
         with:
           php-version: '8.2'
           coverage: none
@@ -236,6 +250,7 @@ jobs:
           tools: composer:v2, psalm:6.18.1
 
       - name: Install dependencies
+        if: hashFiles('src/**/*.php') != ''
         run: composer install --no-interaction --no-progress
 
       # Blocking: psalm-baseline.xml holds every finding this had on the day
@@ -245,6 +260,7 @@ jobs:
       # the flag does not hang here, but it has no source or sink in this
       # scan's scope to connect, so it would report nothing either way.
       - name: Static analysis over src/
+        if: hashFiles('src/**/*.php') != ''
         run: psalm --php-version=8.2
 
   # A real vulnerability-class scanner, chosen from a measured four-way
@@ -270,6 +286,9 @@ jobs:
   # container; timeout-minutes is generous around that.
   progpilot:
     name: Vulnerability scan (Progpilot)
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -278,23 +297,29 @@ jobs:
           persist-credentials: false
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        if: hashFiles('src/**/*.php') != ''
         with:
           php-version: '8.2'
           coverage: none
           tools: composer:v2
 
       - name: Install Progpilot
+        if: hashFiles('src/**/*.php') != ''
         env:
           COMPOSER_HOME: ${{ runner.temp }}/progpilot-composer-home
         run: composer global require designsecurity/progpilot:1.2.0 --no-interaction --no-progress
 
       - name: Scan src/ for known vulnerability classes
+        if: hashFiles('src/**/*.php') != ''
         env:
           COMPOSER_HOME: ${{ runner.temp }}/progpilot-composer-home
         run: '"$COMPOSER_HOME/vendor/bin/progpilot" src/'
 
   package:
     name: Release archive builds
+    # Needs composer.json/extension.xml, which only an extension has; in the
+    # template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -343,7 +368,8 @@ jobs:
           # shellcheck disable=SC2016
           php -r '
             $a = json_decode(file_get_contents("/tmp/sbom.json"), true);
-            $n = count($a["components"] ?? []);
-            if ($n < 1) { fwrite(STDERR, "the SBOM lists no dependencies\n"); exit(1); }
-            echo $n, " production dependencies inventoried\n";
+            // An extension with no production dependency has an empty list,
+            // which is a correct SBOM; a missing list is a broken one.
+            if (!is_array($a["components"] ?? null)) { fwrite(STDERR, "the SBOM has no components list\n"); exit(1); }
+            echo count($a["components"]), " production dependencies inventoried\n";
           '
