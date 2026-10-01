@@ -183,6 +183,7 @@ need_runner() {
 		-v "$REPO":/src:ro \
 		-e DB_HOST="$DB_CONTAINER" -e DB_PORT=3306 -e DB_USER=root -e DB_PWD="$DB_PWD" \
 		-e ITOP_ADMIN_USER="$ITOP_ADMIN_USER" -e ITOP_ADMIN_PWD="$ITOP_ADMIN_PWD" \
+		-e GITHUB_TOKEN \
 		-e HOME=/work/.home \
 		"$(image_for "$sPhp")" sleep infinity >/dev/null
 }
