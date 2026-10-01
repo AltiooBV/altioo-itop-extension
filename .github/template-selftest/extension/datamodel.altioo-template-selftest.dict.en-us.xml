@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <itop_design xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="3.2">
-  <!-- One dictionary entry, so the compiled environment has something of this module's in it. -->
+  <!-- Combodo's module validation suite requires every EN US entry to have an FR FR counterpart. -->
   <dictionaries>
     <dictionary id="EN US">
       <entries>
