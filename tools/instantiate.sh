@@ -73,6 +73,10 @@ echo "Substituting placeholders under $ROOT ..."
 # newline, but this is the one place in the template where getting that wrong
 # would corrupt a file rather than just look wrong in a diff.
 while IFS= read -r -d '' f; do
+	# sed -i writes a new file, and on an ACL-backed share that new file loses
+	# the executable bit - which git then records as a mode change on every
+	# script under tools/. Put the original mode back.
+	sMode=$(stat -c '%a' "$f")
 	sed -i \
 		-e "s/{{MODULE_CODE}}/${MODULE_CODE}/g" \
 		-e "s/{{GITHUB_ORG}}/${GITHUB_ORG}/g" \
@@ -86,6 +90,7 @@ while IFS= read -r -d '' f; do
 		-e "s/{{PHP_FLOOR}}/${PHP_FLOOR}/g" \
 		-e "s/{{PHP_CEILING}}/${PHP_CEILING}/g" \
 		"$f"
+	chmod "$sMode" "$f"
 done < <(find "$ROOT" -type f -not -path '*/.git/*' -print0)
 
 echo
