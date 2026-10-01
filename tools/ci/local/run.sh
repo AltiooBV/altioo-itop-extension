@@ -165,11 +165,17 @@ need_runner() {
 		local sRunning sCurrent
 		sRunning=$(docker inspect "$sName" --format '{{.Image}}' 2>/dev/null) || sRunning=
 		sCurrent=$(docker image inspect "$(image_for "$sPhp")" --format '{{.Id}}' 2>/dev/null) || sCurrent=
-		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ]; then
+		# The same path is not always the same directory: one deleted and
+		# recreated under the same name leaves the bind on the old, empty one,
+		# and every step then reports "composer.json not found".
+		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ] \
+			&& docker exec "$sName" test -f /src/extension.xml; then
 			return
 		fi
 		if [ "$sMounted" != "$REPO" ]; then
 			say "$sName is bound to ${sMounted:-nothing}, not $REPO - recreating it"
+		elif [ "$sRunning" = "$sCurrent" ]; then
+			say "$sName no longer sees $REPO (recreated since it started) - recreating it"
 		else
 			say "$sName runs another image than $(image_for "$sPhp") - recreating it"
 		fi
