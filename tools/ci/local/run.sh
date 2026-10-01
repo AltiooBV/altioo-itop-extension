@@ -100,9 +100,15 @@ put_script() {
 	docker exec -i "$(runner_name "$1")" bash -c "cat > /work/$2"
 }
 
+# GITHUB_TOKEN, when the caller has one, is passed per run rather than when
+# the runner is created: a runner lives for days and is reused, so a token set
+# at creation would be ignored once it changed, and would sit in the
+# container's configuration - readable with `docker inspect` - long after the
+# run it was for. resolve-itop-versions.php sends it to the GitHub API, which
+# otherwise allows 60 anonymous calls an hour per IP.
 run_script() {
 	local sPhp=$1 sName=$2; shift 2
-	docker exec "$(runner_name "$sPhp")" bash "/work/$sName" "$@"
+	docker exec -e GITHUB_TOKEN "$(runner_name "$sPhp")" bash "/work/$sName" "$@"
 }
 
 # MariaDB 10.11, pinned exactly as itop-matrix.yml pins it: a database that
@@ -168,12 +174,19 @@ need_runner() {
 		# The same path is not always the same directory: one deleted and
 		# recreated under the same name leaves the bind on the old, empty one,
 		# and every step then reports "composer.json not found".
-		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ] \
+		# A runner created by an earlier run.sh may hold GITHUB_TOKEN in its
+		# configuration (see run_script); drop such a runner rather than keep it.
+		local sStoredToken
+		sStoredToken=$(docker inspect "$sName" \
+			--format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -c '^GITHUB_TOKEN=') || true
+		if [ "$sMounted" = "$REPO" ] && [ "$sRunning" = "$sCurrent" ] && [ "${sStoredToken:-0}" = 0 ] \
 			&& docker exec "$sName" test -f /src/extension.xml; then
 			return
 		fi
 		if [ "$sMounted" != "$REPO" ]; then
 			say "$sName is bound to ${sMounted:-nothing}, not $REPO - recreating it"
+		elif [ "${sStoredToken:-0}" != 0 ]; then
+			say "$sName holds a GITHUB_TOKEN from when it was created - recreating it without"
 		elif [ "$sRunning" = "$sCurrent" ]; then
 			say "$sName no longer sees $REPO (recreated since it started) - recreating it"
 		else
@@ -189,7 +202,6 @@ need_runner() {
 		-v "$REPO":/src:ro \
 		-e DB_HOST="$DB_CONTAINER" -e DB_PORT=3306 -e DB_USER=root -e DB_PWD="$DB_PWD" \
 		-e ITOP_ADMIN_USER="$ITOP_ADMIN_USER" -e ITOP_ADMIN_PWD="$ITOP_ADMIN_PWD" \
-		-e GITHUB_TOKEN \
 		-e HOME=/work/.home \
 		"$(image_for "$sPhp")" sleep infinity >/dev/null
 }
