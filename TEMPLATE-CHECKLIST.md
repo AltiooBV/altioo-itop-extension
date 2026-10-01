@@ -74,15 +74,23 @@ new root-level or `doc/` file that nobody classified ships to a customer
 instance by default. `doc/itop-extension-guide.md` §9.1 and `AGENTS.md` §4
 (if you copy one, see below) say why.
 
-## 4. If this extension has an HTTP entry point
+## 4. Nothing to delete for what this extension does not have
 
-`tools/ci/http-smoke.sh` assumes one at
+The harness adapts to the tree rather than the other way round, so a theme or
+a datamodel-only package keeps every file here unchanged:
+
+| When the extension has no... | CI skips | Detected by |
+|---|---|---|
+| hand-written PHP under `src/` | Psalm and Progpilot (`ci.yml`) | `src/**/*.php` |
+| integration suite | that step (`itop-matrix.yml`, `upgrade.yml`, `run.sh`) | `tests/php-unit-tests/Integration/` |
+| HTTP entry point | `http-smoke.sh` | `index.php` at the root |
+| upgrade fixture | the seed/verify steps (`upgrade.yml`) | `tools/ci/upgrade-fixture.php` |
+| production dependency | nothing - an empty SBOM is accepted | `composer sbom` |
+
+An extension that does have an entry point: `http-smoke.sh` requests
 `env-<env>/<module code>/index.php` and `extensions/<module code>/index.php`,
 and `.github/workflows/ci.yml`'s `package` job comment names `.htaccess` and
-`web.config` as the guard files to add to its required-file list. An
-extension with no entry point can delete `http-smoke.sh` and the step in
-`itop-matrix.yml`/`ci.yml` that calls it, and the `MCP scope` example in
-`upgrade-fixture.php` (see below) does not apply.
+`web.config` as the guard files to add to its required-file list.
 
 ## 5. Write `tools/ci/checks/module-smoke.php` and `tools/ci/upgrade-fixture.php`
 
@@ -94,7 +102,9 @@ checks. `itop-smoke.php` in this template already includes
 own settings/class/scope checks, following the shape of the one in
 `altioo-mcp` (`tools/ci/checks/module-smoke.php` there). `upgrade-fixture.php`
 needs the same kind of extension-specific rewrite; there is no generic
-version to copy.
+version to copy. Both are optional for an extension that stores nothing: the
+upgrade workflow then checks the upgraded instance with `itop-smoke.php`
+alone.
 
 ## 6. Point your own harness's instruction file at your own `AGENTS.md`
 

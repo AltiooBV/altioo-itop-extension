@@ -226,6 +226,7 @@ jobs:
       # ItopDataTestCase, so it only ever runs where there is a real MetaModel -
       # here, and on a maintainer's local instance.
       - name: The module's integration suite, against this iTop
+        if: hashFiles('tests/php-unit-tests/Integration/**/*.php') != ''
         working-directory: ${{ runner.temp }}/itop/tests/php-unit-tests
         run: |
           set -euo pipefail
@@ -235,13 +236,20 @@ jobs:
             --testdox \
             "${ITOP_DIR}/env-production/${MODULE_CODE}/tests/php-unit-tests/Integration"
 
-      # One step, because the token exists only between these two lines.
-      - name: Datamodel checks, then the endpoint over HTTP
+      # One step, because the token exists only between these two lines. The
+      # HTTP half runs only for an extension with an entry point (index.php at
+      # its root, which is what http-smoke.sh requests); without one there is
+      # nothing to request, and the datamodel checks are the whole step.
+      - name: Datamodel checks, then the endpoint over HTTP if there is one
         run: |
           set -euo pipefail
           token=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER" | tail -1)
           echo "::add-mask::$token"
-          ITOP_TOKEN="$token" tools/ci/http-smoke.sh
+          if [ -f index.php ]; then
+            ITOP_TOKEN="$token" tools/ci/http-smoke.sh
+          else
+            echo "no index.php: no HTTP entry point to smoke"
+          fi
 
       # The setup log is the only account of why a module was not selected, and
       # it is on a machine that is about to be deleted.
