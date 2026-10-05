@@ -331,8 +331,10 @@ fi
 
 smoke() {
 	cd "$sDest" || return 1
-	local sToken
-	sToken=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER" | tail -1) || return 1
+	local sOut sToken
+	sOut=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER") || { printf '%s\n' "$sOut"; return 1; }
+	printf '%s\n' "$sOut" | grep -v '^http-smoke-token: '
+	sToken=$(printf '%s\n' "$sOut" | sed -n 's/^http-smoke-token: //p')
 	# Only an extension with an entry point has an endpoint to request.
 	if [ -f index.php ]; then
 		ITOP_TOKEN="$sToken" tools/ci/http-smoke.sh

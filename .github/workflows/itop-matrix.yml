@@ -4,8 +4,8 @@ name: iTop matrix
 # the PHP matrix, and the gate job below repeats it once so that nothing here
 # starts on a tree that fails it. This workflow proves the code is right about
 # iTop: that the setup still selects the module, that the compiled datamodel
-# still holds what the controller reads, and that the endpoint still answers
-# over HTTP. Those break without a commit here - they
+# still holds what the code reads, and that an entry point, if there is one,
+# still answers over HTTP. Those break without a commit here - they
 # break when Combodo publishes a patch - which is why this also runs on a
 # schedule and not only on pull requests.
 #
@@ -14,8 +14,8 @@ name: iTop matrix
 # there; nothing in this file names a version.
 #
 # What gets installed is the packaged release from SourceForge, never a git
-# tree: the repository does not carry every module a release ships, and one of
-# the missing ones is a dependency of this module. See doc/ci-itop-matrix.md.
+# tree: the repository does not carry every module a release ships, so a
+# dependency on one of the missing ones is unsatisfiable there (guide §12.3).
 
 on:
   push:
@@ -242,15 +242,21 @@ jobs:
             --testdox \
             "${ITOP_DIR}/env-production/${MODULE_CODE}/tests/php-unit-tests/Integration"
 
-      # One step, because the token exists only between these two lines. The
-      # HTTP half runs only for an extension with an entry point (index.php at
-      # its root, which is what http-smoke.sh requests); without one there is
-      # nothing to request, and the datamodel checks are the whole step.
+      # One step, because the token exists only between these lines. The HTTP
+      # half runs only for an extension with an entry point (index.php at its
+      # root, which is what http-smoke.sh requests); without one there is
+      # nothing to request, and the datamodel checks are the whole step. The
+      # token is only there when checks/module-smoke.php minted one.
       - name: Datamodel checks, then the endpoint over HTTP if there is one
         run: |
           set -euo pipefail
-          token=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER" | tail -1)
-          echo "::add-mask::$token"
+          if ! out=$(php tools/ci/itop-smoke.php "$ITOP_DIR" "$ITOP_ADMIN_USER"); then
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          token=$(printf '%s\n' "$out" | sed -n 's/^http-smoke-token: //p')
+          if [ -n "$token" ]; then echo "::add-mask::$token"; fi
+          printf '%s\n' "$out" | grep -v '^http-smoke-token: ' || true
           if [ -f index.php ]; then
             ITOP_TOKEN="$token" tools/ci/http-smoke.sh
           else

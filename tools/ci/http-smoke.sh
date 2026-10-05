@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 #
-# Calls the endpoint over HTTP, the way a client does.
+# Calls the module's HTTP entry point the way a client does.
 #
-# The unit suite proves the pipeline is right and the integration suite proves
-# it is right against a real MetaModel. Neither one goes through a web server,
-# and every incident this extension has had in the field started there: a
-# request that never reached the controller, or an answer the client could not
-# read. What is checked is that the wire is intact - both URLs refuse a call
-# without a credential, one accepts a call with one, and answers a real MCP
-# method.
+# The unit suite proves the code is right and the integration suite proves it
+# is right against a real MetaModel. Neither one goes through a web server, and
+# that is where an entry point fails in the field: a request that never reaches
+# the code, or a fatal before it does.
 #
-# Usage: ITOP_DIR=... ITOP_TOKEN=... tools/ci/http-smoke.sh
+# Two halves, the same split as itop-smoke.php and checks/module-smoke.php:
+#
+#   generic   here. iTop answers, and both URLs the module's index.php is
+#             served from answer without a server error.
+#   specific  tools/ci/checks/http-smoke.sh, sourced if present. What *this*
+#             entry point must do - refuse an anonymous caller, accept a token,
+#             answer its own protocol - is the extension's to say. It runs with
+#             BASE, ENDPOINT, ALT_ENDPOINT, ITOP_TOKEN (empty unless
+#             checks/module-smoke.php minted one) and fail() in scope.
+#
+# This file used to be one extension's MCP smoke - a JSON-RPC initialize and
+# tools/list - run for any extension with an index.php, so a console page or a
+# REST endpoint failed it for not being an MCP server.
+#
+# Usage: ITOP_DIR=... [ITOP_TOKEN=...] tools/ci/http-smoke.sh
 #
 # @copyright   Copyright (C) 2026 Altioo
 # @license     https://www.gnu.org/licenses/agpl-3.0.html AGPL-3.0-or-later
@@ -18,7 +29,7 @@
 set -euo pipefail
 
 : "${ITOP_DIR:?set ITOP_DIR to the installed iTop}"
-: "${ITOP_TOKEN:?set ITOP_TOKEN to a personal token carrying an MCP scope}"
+ITOP_TOKEN="${ITOP_TOKEN:-}"
 
 MODULE_SRC="${MODULE_SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 MODULE_CODE=$(sed -n 's#.*<extension_code>\(.*\)</extension_code>.*#\1#p' "$MODULE_SRC/extension.xml" | head -1)
@@ -27,31 +38,22 @@ HOST="${SMOKE_HOST:-127.0.0.1}"
 PORT="${SMOKE_PORT:-8080}"
 BASE="http://${HOST}:${PORT}"
 ITOP_ENV="${ITOP_ENV:-production}"
-PROTOCOL_VERSION="${MCP_PROTOCOL_VERSION:-2025-06-18}"
 
-# Two URLs serve the same file, and both are reachable: the module's .htaccess
-# grants index.php in whichever tree it is copied into. Only the first is
-# published to clients, so the token flow runs there.
-#
-# The second gets an unauthenticated call of its own because it is the one with
-# a failure mode the first cannot have. index.php used to require
-# __DIR__.'/vendor/autoload.php' before booting iTop; served from the compiled
-# tree that is the same absolute file iTop's startup requires, and served from
-# extensions/ it is not, so the package was loaded twice, PHP fatalled on the
-# redeclared autoloader class, and every call to that URL was a 500. From the
-# wire that bug is a status code, which is all this step reads.
+# Two URLs serve the same file on a default install: the compiled copy and the
+# one in extensions/. Only the first is the one to publish to clients, but both
+# are reachable, and the second has a failure mode the first cannot have: an
+# index.php that requires __DIR__.'/vendor/autoload.php' before booting iTop
+# loads the same file iTop's startup requires when served from env-<env>/, and
+# a second copy of it when served from extensions/ - a fatal on a redeclared
+# class, and a 500 on every call to that URL. From the wire that bug is a
+# status code, which is what the generic half reads.
 ENDPOINT="${BASE}/env-${ITOP_ENV}/${MODULE_CODE}/index.php"
 ALT_ENDPOINT="${BASE}/extensions/${MODULE_CODE}/index.php"
 
-INITIALIZE='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"'"$PROTOCOL_VERSION"'","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
-
 # PHP's built-in server, not Apache: this checks the application, and pulling
-# in a web server would mean checking its configuration instead. The .htaccess
-# rules that hide src/ and vendor/ are Apache's job and are verified in the
-# release checklist against a real one - php -S ignores them, so no conclusion
-# about them is drawn here. Note that this cuts both ways for the two URLs
-# above: php -S serves them both because it ignores the deny, and on Apache
-# they are both reachable because the module's own .htaccess grants them back.
+# in a web server would mean checking its configuration instead. The
+# .htaccess/web.config rules that hide src/ and vendor/ are the web server's
+# job, and php -S ignores them, so no conclusion about them is drawn here.
 #
 # Started in a session of its own, and stopped by process group rather than by
 # process: PHP_CLI_SERVER_WORKERS makes the server fork workers, and they do not
@@ -77,61 +79,24 @@ echo "1. the console answers"
 curl -fsS -o /dev/null -w '   HTTP %{http_code}\n' "${BASE}/index.php" \
   || fail "iTop itself did not answer over HTTP"
 
-echo "2. every endpoint refuses an unauthenticated call"
+echo "2. the entry point answers at both URLs, without a server error"
 for URL in "$ENDPOINT" "$ALT_ENDPOINT"; do
   PATH_ONLY="${URL#"$BASE"}"
-  STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
-    -X POST "$URL" \
-    -H 'Content-Type: application/json' \
-    -H 'Accept: application/json, text/event-stream' \
-    -d "$INITIALIZE")
+  STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)
   echo "   HTTP $STATUS   $PATH_ONLY"
-  [ "$STATUS" = "401" ] \
-    || fail "an unauthenticated call to $PATH_ONLY was answered $STATUS, expected 401"
+  case "$STATUS" in
+    000) fail "no answer from $PATH_ONLY" ;;
+    5*)  fail "$PATH_ONLY answered $STATUS - a fatal before or inside the entry point" ;;
+  esac
 done
 
-echo "3. initialize, with a token"
-HEADERS=$(mktemp); BODY=$(mktemp)
-curl -s -D "$HEADERS" -o "$BODY" \
-  -X POST "$ENDPOINT" \
-  -H "Authorization: Bearer ${ITOP_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d "$INITIALIZE"
+SPECIFIC="$MODULE_SRC/tools/ci/checks/http-smoke.sh"
+if [ -f "$SPECIFIC" ]; then
+  echo "3. this extension's own checks ($SPECIFIC)"
+  # shellcheck source=/dev/null
+  . "$SPECIFIC"
+else
+  echo "3. no tools/ci/checks/http-smoke.sh: nothing extension-specific to ask the entry point"
+fi
 
-grep -q '"protocolVersion"' "$BODY" || { echo "--- response ---"; cat "$BODY"; fail "initialize did not return a protocol version"; }
-echo "   server: $(grep -o '"serverInfo":{[^}]*}' "$BODY" || echo 'no serverInfo')"
-
-# Forwarded on every later call, as a client does. Absent when the server is
-# stateless, in which case this is an empty string and changes nothing.
-SESSION=$(grep -i '^mcp-session-id:' "$HEADERS" | tr -d '\r' | cut -d' ' -f2- || true)
-
-curl -s -o /dev/null \
-  -X POST "$ENDPOINT" \
-  -H "Authorization: Bearer ${ITOP_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  ${SESSION:+-H "Mcp-Session-Id: ${SESSION}"} \
-  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
-
-echo "4. tools/list returns tools"
-curl -s -o "$BODY" \
-  -X POST "$ENDPOINT" \
-  -H "Authorization: Bearer ${ITOP_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H "MCP-Protocol-Version: ${PROTOCOL_VERSION}" \
-  ${SESSION:+-H "Mcp-Session-Id: ${SESSION}"} \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-
-# Decoded rather than grepped. The word appears inside the answer itself - the
-# bulk tools declare a per-object status of {"ok","error"} in their output
-# schema - so a substring test on the body reports a JSON-RPC error on a call
-# that returned every tool correctly. Only a top-level `error` member is one.
-RPC_ERROR=$(php -r '$a = json_decode(file_get_contents($argv[1]), true); echo isset($a["error"]) ? json_encode($a["error"]) : "";' "$BODY")
-[ -z "$RPC_ERROR" ] || { echo "--- response ---"; cat "$BODY"; fail "tools/list returned a JSON-RPC error: $RPC_ERROR"; }
-COUNT=$(php -r '$a=json_decode(file_get_contents($argv[1]),true); echo count($a["result"]["tools"] ?? []);' "$BODY")
-echo "   $COUNT tools advertised"
-[ "$COUNT" -gt 0 ] || { echo "--- response ---"; cat "$BODY"; fail "tools/list advertised no tools"; }
-
-echo "both endpoints are reachable, refuse anonymous callers, and the published one serves tools"
+echo "the entry point is reachable at both URLs"

@@ -10,10 +10,13 @@ The workflow then runs `tools/ci/local/run.sh unit` and `matrix` in that tree - 
 `tools/ci/` scripts the extension's own workflows call, in the containers `run.sh` builds - and
 last `tools/ci/build-archive.sh`, which is what `ci.yml`'s package job and `release.yml` run.
 
-The extension here is deliberately minimal - no `src/`, no HTTP entry point, no integration suite,
-no upgrade fixture - so it also exercises every "skip what the extension does not have" path
-`TEMPLATE-CHECKLIST.md` §4 lists. What it does not exercise is the other side of each of those
-conditions, nor the workflow YAML itself, which the `workflows` job in `ci.yml` lints.
+The extension here is deliberately minimal - no `src/`, no integration suite, no upgrade fixture -
+so it also exercises those "skip what the extension does not have" paths `TEMPLATE-CHECKLIST.md`
+§4 lists. It does have an `index.php`, answering an empty 204, with `.htaccess` and `web.config`
+beside it: that is what puts the generic half of `tools/ci/http-smoke.sh` and the guard-file rule
+of `tools/ci/build-archive.sh` through the template's own CI. What it does not exercise is the
+other side of the remaining conditions, `upgrade.yml` (which needs a released `v*` tag to upgrade
+from), nor the workflow YAML itself, which the `workflows` job in `ci.yml` lints.
 
 Run it locally the same way:
 
