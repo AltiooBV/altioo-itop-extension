@@ -115,11 +115,22 @@ is for.
 
 ### The archive is built by CI, not by hand
 
-Pushing a `v*` tag runs `release.yml`, which refuses a tag that disagrees with `extension.xml`,
-builds the production vendor tree on the floor PHP, assembles the zip through `exclude.txt`,
-checks it carries what it must and nothing it must not, and attaches the archive, its
-`.sha256`, a CycloneDX `sbom.cyclonedx.json`, `licenses.json` and build-provenance and SBOM
-attestations. The SBOM and licence inventory also go *inside* the archive, so an instance found
+Pushing a `v*` tag runs `release.yml`, in three jobs that never share a machine:
+
+1. **`tests`** runs the unit suite with the development dependencies, which means running
+   their code. It can read the repository and nothing else.
+2. **`build`** refuses a tag that disagrees with `extension.xml` or the changelog, audits the
+   lock, builds the production vendor tree on the floor PHP and runs
+   `tools/ci/build-archive.sh`: the zip through `exclude.txt`, checked for what it must and
+   must not carry, with its `.sha256`, a CycloneDX `sbom.cyclonedx.json` and `licenses.json`.
+   Also read-only.
+3. **`publish`**, on a tag only, is the one job that can sign and write. It runs none of this
+   repository's code and none of its dependencies: it downloads what `build` produced, checks
+   the checksum still matches, adds the build-provenance and SBOM attestations, and attaches
+   everything to the release.
+
+The split is the point: a compromised development dependency runs in `tests`, which holds
+nothing worth taking, and cannot reach the archive the attestation vouches for. The SBOM and licence inventory also go *inside* the archive, so an instance found
 in a year's time can answer what it is running without reaching the internet.
 
 Publish the SHA-256 wherever the download is announced. `vendor/` ships, so "the file I
@@ -161,9 +172,10 @@ the console still shows everything the module added — menus, profiles, setting
 `vendor/` present and built with `--no-dev`; `README.md`, `SECURITY.md`, `CHANGELOG.md`,
 `CONTRIBUTING.md`, `LICENSE` and `doc/` present; `tests/` present (iTop's own Extensions
 testsuite scans `env-production/`); `sbom.cyclonedx.json` and `licenses.json` present; no
-`.git`, no `tools/`, nothing Creative Commons. `ci.yml`'s `package` job checks what can be
-checked without a zip, and `release.yml` checks the zip itself — including every guard file,
-`NOTICE` and dictionary the source tree has.
+`.git`, no `tools/`, nothing Creative Commons. `tools/ci/build-archive.sh` checks all of it on
+the archive it builds — including every guard file, `NOTICE` and dictionary the source tree has
+— and the same script runs in `ci.yml`'s `package` job on every pull request and in
+`release.yml` on the tag, so the release cannot find a problem CI did not.
 
 ### What else the release changed
 

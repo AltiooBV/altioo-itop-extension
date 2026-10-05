@@ -29,7 +29,7 @@ links are absolute because this file ships in the release archive and those do n
 | iTop's `ModuleIntegration` suite | `module-validation.sh` | Dictionary entries that do not resolve in the compiled environment — Combodo's test, run against this module |
 | The module's own `Integration` suite | the workflow step, against `env-production/` | Everything that needs a live `MetaModel`, `UserRights` and a database |
 | Post-setup checks | `itop-smoke.php`, then `checks/module-smoke.php` if present | The declared version against what compiled; then whatever this module adds — settings, classes, profiles — checked in the instance rather than in a fixture |
-| The entry point over HTTP | `http-smoke.sh` | A request that never reaches the module, or an answer a client cannot read, on both the compiled URL and the one under `extensions/` |
+| The entry point over HTTP | `http-smoke.sh`, then `checks/http-smoke.sh` if present | A fatal before or inside the entry point (a 5xx, or no answer) on the compiled URL or the one under `extensions/`; then whatever this entry point must do — refuse an anonymous caller, accept a token, answer its own protocol |
 
 Everything from the third row on exists because **"the setup succeeded" and "the module was
 installed" are different statements** — guide §12.3 says why, and why the verdict is read from
@@ -50,17 +50,22 @@ have:
 | integration suite | that step (`itop-matrix.yml`, `upgrade.yml`, `run.sh`) | `tests/php-unit-tests/Integration/` |
 | HTTP entry point | `http-smoke.sh` | `index.php` at the root |
 | module checks of its own | everything after the version check in `itop-smoke.php` | `tools/ci/checks/module-smoke.php` |
+| entry-point checks of its own | everything after the generic half of `http-smoke.sh` | `tools/ci/checks/http-smoke.sh` |
 | upgrade fixture | the seed and verify steps (`upgrade.yml`) | `tools/ci/upgrade-fixture.php` |
 | production dependency | nothing — an empty SBOM is accepted | `composer sbom` |
-| `index.php`, `.htaccess`, `web.config`, `NOTICE` or dictionaries | their check in the release archive (`release.yml`) | the file in the source tree |
+| `index.php` (and with it `.htaccess`, `web.config`), `NOTICE`, dictionaries, `tests/php-unit-tests/` | their check in the archive (`tools/ci/build-archive.sh`, run by `ci.yml`'s `package` job and by `release.yml`) | the file in the source tree |
 
 The last row runs the other way too: once the source tree *has* one of those files, the archive
-must carry it, so an `exclude.txt` entry that drops a guard file or a dictionary fails the release
-rather than shipping without it.
+must carry it, so an `exclude.txt` entry that drops a guard file or a dictionary fails CI on the
+pull request rather than the release on the tag. Every `exclude.txt` entry starts with `/`: rsync
+matches one without it at any depth, and `build-archive.sh` refuses it.
 
-An extension that does have an entry point should read `http-smoke.sh` before relying on it:
-what it sends once a credential is accepted is a protocol call of the module's own, and the
-script is where that is written.
+An extension that does have an entry point gets only the generic half from `http-smoke.sh`: both
+URLs answer without a server error. Whether the entry point refuses a call without a credential
+is not something a generic script can know, so nothing checks it until
+`tools/ci/checks/http-smoke.sh` does. `http-smoke.sh` sources that file with `BASE`, `ENDPOINT`,
+`ALT_ENDPOINT`, `ITOP_TOKEN` and `fail` in scope; the token is the one `checks/module-smoke.php`
+minted, if it set `$sHttpSmokeToken`, and is empty otherwise.
 
 ## Which versions
 
@@ -76,6 +81,15 @@ editing a workflow. To see what CI will use:
 ```bash
 php tools/ci/resolve-itop-versions.php
 ```
+
+The PHP versions come from the same file: `tools/ci/php-range.sh` reads the floor, the ceiling
+and every minor between them, and every workflow - and `run.sh`'s defaults - takes its PHP from
+there. No workflow names a version of its own; keep `composer.json`'s `"php"` constraint and its
+`config.platform.php` pin on the same floor.
+
+A `pin` on a branch selects the packaged release that is installed, not only the label the job
+is named after: pinned to a patch, the run installs that patch, and a pin that matches no
+packaged release fails the run instead of falling back to the newest.
 
 Two consequences worth knowing when reading a run:
 
@@ -136,7 +150,8 @@ declares, a MariaDB, and somewhere disposable to install an iTop into.
 [`tools/ci/local/run.sh`](https://github.com/{{GITHUB_ORG}}/{{MODULE_CODE}}/blob/main/tools/ci/local/run.sh)
 supplies all three from Docker and needs nothing else installed. Its header lists the
 subcommands — `unit`, `matrix <branch> <php>`, `integration`, `shell`, `down` — and it runs the
-same `tools/ci/` scripts the workflow steps run; the only thing it adds is the machine.
+same `tools/ci/` scripts the workflow steps run; the only thing it adds is the machine. Without
+versions it uses the first declared branch and the floor PHP, read with `jq`.
 
 `matrix` records a verdict per step and carries on, the way `fail-fast: false` lets the real
 matrix finish, then exits non-zero if any step failed. The installed iTop is kept in a Docker

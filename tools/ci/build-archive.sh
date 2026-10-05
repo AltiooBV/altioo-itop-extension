@@ -94,11 +94,21 @@ aRequired=(README.md SECURITY.md CHANGELOG.md CONTRIBUTING.md LICENSE
 	extension.xml "module.${module}.php" vendor/autoload.php
 	sbom.cyclonedx.json licenses.json)
 [ ! -f index.php ] || aRequired+=(index.php .htaccess web.config)
+# NOTICE, where it exists, is what scopes LICENSE; without it the archive
+# claims a single licence for files it does not cover.
+[ ! -f NOTICE ] || aRequired+=(NOTICE)
 [ ! -d tests/php-unit-tests ] || aRequired+=(tests/php-unit-tests/bootstrap.php)
-# Every datamodel and dictionary file the tree declares, whatever it is called.
+# Every datamodel file at the root, and every dictionary in whichever language
+# and directory the module keeps it. Dot-directories are skipped:
+# .github/template-selftest/ carries a stand-in extension's dictionaries that
+# never ship.
 for f in datamodel.*.xml; do
 	[ -e "$f" ] && aRequired+=("$f")
 done
+while IFS= read -r f; do
+	aRequired+=("${f#./}")
+done < <(find . \( -path ./vendor -o -path ./build -o -path ./tools -o -path './.*' \) -prune \
+	-o -type f \( -name '*.dict.*.xml' -o -name '*.dict.*.php' \) -print | sort -u)
 
 cd "build/${module}"
 aMissing=()
