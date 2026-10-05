@@ -12,8 +12,6 @@ you are building.
 tools/instantiate.sh \
   --module-code my-extension \
   --github-org MyOrg \
-  --vendor myorg \
-  --vendor-name "My Org" \
   --security-email security@example.com \
   --conduct-email conduct@example.com \
   --itop-branch 3.2 \
