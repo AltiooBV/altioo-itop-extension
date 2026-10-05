@@ -266,8 +266,9 @@ INNER
 # validation, this module's integration suite, and the two smokes.
 #
 # Steps record a verdict and the run carries on, the way fail-fast:false lets
-# the matrix finish - see "Running it on a laptop" in doc/ci-itop-matrix.md for the
-# step that is expected to fail on some releases, and why.
+# the matrix finish - see "An upstream test that does not exist" in
+# doc/ci-itop-matrix.md for the one step that tolerates part of a release
+# rather than failing on it, and why.
 cmd_matrix() {
 	local sBranch=${1:-$(declared_branch)} sPhp=${2:-$(declared_floor)}
 	need_image "$sPhp"; need_db; need_runner "$sPhp"

@@ -41,6 +41,7 @@ any other specific module.
 | | |
 |---|---|
 | `doc/itop-extension-guide.md`, `doc/itop-branch-notes.md` | The development guide and its dated, branch-specific companion. Read both before the first change. |
+| `doc/ci-itop-matrix.md`, `doc/ci-upgrade.md`, `doc/release-checklist.md` | What each CI stage asks, how to run it locally, and the release procedure - generic, to adapt to the extension (`TEMPLATE-CHECKLIST.md` §2). |
 | `tools/ci/*`, `tools/ci/local/run.sh` | The CI harness: install/upgrade against a packaged iTop release, a smoke test, a Docker-based local runner that gives the same answer as Actions without spending Actions minutes. |
 | `.github/workflows/{ci,itop-matrix,upgrade,release}.yml` | The workflows that call the harness above. None of them names a module - `tools/ci/*` reads the module code from `extension.xml` at run time, so this tree carries over to a renamed or forked extension unchanged. |
 | `.github/itop-support.json` | The single declared-support file the CI matrix is computed from, and (if you wire up the equivalent of `altioo-mcp`'s `ModuleMetadataTest`) that every prose claim of supported versions should be checked against. |

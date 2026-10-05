@@ -58,15 +58,14 @@ template after this script was last touched, and needs the same treatment.
   if this extension has its own extension point (a plugin mechanism, a tool
   pack convention) - both carry a `TEMPLATE NOTE` where that link goes, and
   are fine to leave generic if there is no such split.
-- **Write `doc/ci-itop-matrix.md`, `doc/ci-upgrade.md` and
-  `doc/release-checklist.md`.** Not included in this first pass of the
-  template - `tools/ci/*` and the three workflows they document are, so the
-  scripts work out of the box, but the prose walking through what each stage
-  asks still needs writing (or porting and genericising from a sibling
-  repository such as `altioo-mcp`, whose versions are close to generic
-  already). Until `doc/ci-itop-matrix.md` exists, `CONTRIBUTING.md` points
-  at `.github/workflows/itop-matrix.yml` and `tools/ci/local/run.sh` for the
-  same ground; point it at the document once it does.
+- **Adapt `doc/ci-itop-matrix.md`, `doc/ci-upgrade.md` and
+  `doc/release-checklist.md` to what this extension has.** They ship generic,
+  genericised from `altioo-mcp`'s, so the links to them from `CONTRIBUTING.md`,
+  the branch notes and `tools/` resolve from the first commit. What they
+  cannot say for you: what `checks/http-smoke.sh` and `checks/module-smoke.php` assert
+  for this module, what its upgrade fixture seeds, what "a real install"
+  exercises, and who the publishers are. Delete a row that does not apply
+  rather than leave it describing a module this is not.
 - **Write `doc/security-summary.md`** before the first public release:
   `doc/itop-extension-guide.md` §9.8 lists what an approver asks every vendor
   (bill of materials, provenance, vulnerability process, footprint, data
@@ -88,15 +87,10 @@ unanchored entry. `doc/itop-extension-guide.md` §9.1 and `AGENTS.md` §4
 ## 4. Nothing to delete for what this extension does not have
 
 The harness adapts to the tree rather than the other way round, so a theme or
-a datamodel-only package keeps every file here unchanged:
-
-| When the extension has no... | CI skips | Detected by |
-|---|---|---|
-| hand-written PHP under `src/` | Psalm and Progpilot (`ci.yml`) | `src/**/*.php` |
-| integration suite | that step (`itop-matrix.yml`, `upgrade.yml`, `run.sh`) | `tests/php-unit-tests/Integration/` |
-| HTTP entry point | `http-smoke.sh`, and the `.htaccess`/`web.config` requirement (`build-archive.sh`) | `index.php` at the root |
-| upgrade fixture | the seed/verify steps (`upgrade.yml`) | `tools/ci/upgrade-fixture.php` |
-| production dependency | nothing - an empty SBOM is accepted | `composer sbom` |
+a datamodel-only package keeps every file here unchanged.
+`doc/ci-itop-matrix.md`, "What runs only when the tree has it", lists what is
+skipped and what detects it - there rather than here, because this file is
+deleted after instantiation and that one stays.
 
 An extension that does have an entry point: `http-smoke.sh` requests
 `env-<env>/<module code>/index.php` and `extensions/<module code>/index.php`
