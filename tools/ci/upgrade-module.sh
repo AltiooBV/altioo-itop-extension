@@ -225,7 +225,7 @@ if [ ! -d "$ITOP_DIR/env-$TARGET_ENV/$MODULE_CODE" ]; then
   echo "env directories:"
   ls -d "$ITOP_DIR"/env-* 2>/dev/null || echo "  none"
   echo "entries in env-$TARGET_ENV: $(ls "$ITOP_DIR/env-$TARGET_ENV" 2>/dev/null | wc -l)"
-  ls "$ITOP_DIR/env-$TARGET_ENV" 2>/dev/null | grep -i -E 'altioo|mcp' | sed 's/^/  match: /' || echo "  no entry matching altioo or mcp"
+  ls "$ITOP_DIR/env-$TARGET_ENV" 2>/dev/null | grep -i -F "$MODULE_CODE" | sed 's/^/  match: /' || echo "  no entry matching $MODULE_CODE"
   echo "extensions/:"
   ls "$ITOP_DIR/extensions" 2>/dev/null | sed 's/^/  /' || echo "  none"
   echo "extensions/$MODULE_CODE contents:"

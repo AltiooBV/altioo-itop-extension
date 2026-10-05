@@ -14,14 +14,18 @@
 # script from tools/ci/ that the workflow step runs; what this file adds is the
 # machine to run it on.
 #
-#   tools/ci/local/run.sh unit                  ci.yml's unit, lint and Psalm jobs, on 8.2
-#   tools/ci/local/run.sh unit 8.4              the same, on the ceiling
-#   tools/ci/local/run.sh matrix                itop-matrix.yml, iTop 3.2 on 8.2
-#   tools/ci/local/run.sh matrix 3.2 8.4        the same branch, on the ceiling
+#   tools/ci/local/run.sh unit                  ci.yml's unit, lint and Psalm jobs, on the floor
+#   tools/ci/local/run.sh unit 8.4              the same, on another PHP
+#   tools/ci/local/run.sh matrix                itop-matrix.yml, first declared branch on the floor
+#   tools/ci/local/run.sh matrix 3.2 8.4        a given branch, on a given PHP
 #   tools/ci/local/run.sh integration           just the integration suite, against
 #                                               the instance matrix already installed
 #   tools/ci/local/run.sh shell 8.2             a prompt inside the runner
 #   tools/ci/local/run.sh down                  remove everything this created
+#
+# The defaults - "the floor", "the first declared branch" - are read from
+# .github/itop-support.json (tools/ci/php-range.sh), which needs jq on this
+# machine. Name both versions and it is not needed.
 #
 # `matrix` only takes a branch .github/itop-support.json names: the release is
 # resolved through `resolve-itop-versions.php --matrix`, which iterates that
@@ -62,6 +66,11 @@ ITOP_ADMIN_PWD='Admin*2026!'
 
 say() { printf '\n\033[1m>>> %s\033[0m\n' "$*"; }
 
+# What the workflows run on when nobody names a version: the floor of the
+# declared PHP range, and the first declared iTop branch.
+declared_floor() { "$REPO/tools/ci/php-range.sh" | sed -n 's/^floor=//p'; }
+declared_branch() { jq -r '.branches[0].branch' "$REPO/.github/itop-support.json"; }
+
 # The image is built once per PHP version and per version of the Dockerfile,
 # and then reused. It used to be one tag per PHP version, reused whatever the
 # Dockerfile said since, with a note to rebuild by hand: a tool added there
@@ -76,6 +85,7 @@ runner_name() { echo "itop-ci-php${1//./}"; }
 
 need_image() {
 	local sPhp=$1 sImage
+	[ -n "$sPhp" ] || { echo "no PHP version given, and none could be read from .github/itop-support.json" >&2; exit 1; }
 	sImage=$(image_for "$sPhp")
 	if [ -z "$(docker images -q "$sImage")" ]; then
 		say "building $sImage for this tools/ci/local/Dockerfile (once; a few minutes)"
@@ -207,37 +217,32 @@ need_runner() {
 }
 
 cmd_build() {
-	local sPhp=${1:-8.2}
+	local sPhp=${1:-$(declared_floor)}
 	need_image "$sPhp"
 	say "$(image_for "$sPhp") ready"
 }
 
 # ci.yml's `tests` job, its `lint` job and its Psalm job: everything that needs
 # neither a database nor an iTop, which is everything that fails while a change
-# is being written. Psalm runs as ci.yml runs it - --php-version=8.2 whichever
+# is being written. Psalm runs as ci.yml runs it - --php-version=<floor> whichever
 # PHP this container has, since that is the target the baseline was built for. An ephemeral container, because none of it is worth keeping.
 cmd_unit() {
-	local sPhp=${1:-8.2}
+	local sPhp=${1:-$(declared_floor)}
 	need_image "$sPhp"; need_runner "$sPhp"
 
 	put_script "$sPhp" unit.sh <<'INNER'
 set -euo pipefail
-sDest=$1
+sDest=$1; sFloor=$2
 rm -rf "$sDest"; mkdir -p "$sDest"
 # The working copy, as a checkout of it would look. The excludes are not an
 # optimisation: CI checks out from git and therefore has none of these, while a
 # copy of a working tree has whichever of them the last local run left behind.
-# doc/example-pack/composer.lock is the one that changes an answer - the pack's
-# lock is deliberately uncommitted, and a stale one pins it to packages needing
-# a PHP this job is not running, so `composer test` in there fails for a reason
-# that does not exist on GitHub.
 rsync -a \
   --exclude=.git/ \
-  --exclude=vendor/ \
-  --exclude=.phpunit.result.cache \
-  --exclude=.phpunit.cache/ \
-  --exclude=build/ \
-  --exclude=doc/example-pack/composer.lock \
+  --exclude=/vendor/ \
+  --exclude=/.phpunit.result.cache \
+  --exclude=/.phpunit.cache/ \
+  --exclude=/build/ \
   /src/ "$sDest/"
 
 cd "$sDest"
@@ -248,13 +253,13 @@ composer check-platform-reqs
 phpcs
 # As in ci.yml: Psalm reads src/, and an extension without one has nothing to analyse.
 if [ -n "$(find src -name '*.php' 2>/dev/null | head -1)" ]; then
-	psalm --php-version=8.2
+	psalm --php-version="$sFloor"
 else
 	echo "no PHP under src/: Psalm skipped"
 fi
 composer test:unit
 INNER
-	run_script "$sPhp" unit.sh "/work/unit-$sPhp"
+	run_script "$sPhp" unit.sh "/work/unit-$sPhp" "$(declared_floor)"
 }
 
 # itop-matrix.yml's install job, end to end: the dry run that answers "would
@@ -265,7 +270,7 @@ INNER
 # the matrix finish - see "Running it on a laptop" in doc/ci-itop-matrix.md for the
 # step that is expected to fail on some releases, and why.
 cmd_matrix() {
-	local sBranch=${1:-3.2} sPhp=${2:-8.2}
+	local sBranch=${1:-$(declared_branch)} sPhp=${2:-$(declared_floor)}
 	need_image "$sPhp"; need_db; need_runner "$sPhp"
 
 	say "iTop $sBranch on PHP $sPhp"
@@ -284,11 +289,10 @@ step() {
 rm -rf "$sDest"; mkdir -p "$sDest"
 rsync -a \
   --exclude=.git/ \
-  --exclude=vendor/ \
-  --exclude=.phpunit.result.cache \
-  --exclude=.phpunit.cache/ \
-  --exclude=build/ \
-  --exclude=doc/example-pack/composer.lock \
+  --exclude=/vendor/ \
+  --exclude=/.phpunit.result.cache \
+  --exclude=/.phpunit.cache/ \
+  --exclude=/build/ \
   /src/ "$sDest/" || exit 1
 cd "$sDest"
 php -v | head -1
@@ -362,7 +366,7 @@ INNER
 # The fast loop. No download, no install: the suite against the iTop a previous
 # `matrix` left in the volume.
 cmd_integration() {
-	local sBranch=${1:-3.2} sPhp=${2:-8.2}
+	local sBranch=${1:-$(declared_branch)} sPhp=${2:-$(declared_floor)}
 	need_image "$sPhp"; need_db; need_runner "$sPhp"
 
 	put_script "$sPhp" integration.sh <<'INNER'
@@ -385,7 +389,7 @@ INNER
 }
 
 cmd_shell() {
-	local sPhp=${1:-8.2}
+	local sPhp=${1:-$(declared_floor)}
 	need_image "$sPhp"; need_db; need_runner "$sPhp"
 	docker exec -it "$(runner_name "$sPhp")" bash
 }

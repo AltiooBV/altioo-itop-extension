@@ -2,8 +2,9 @@
 #
 # Refuse the first edit of a session until the development guide has been read.
 #
-# AGENTS.md, the repository brief, tells an assistant to read
-# doc/itop-extension-guide.md §0 before the first change. Nothing enforced that,
+# The development guide, doc/itop-extension-guide.md, asks to be read - §0
+# first - before the first change, and an AGENTS.md brief, where a repository
+# has one, repeats it. Nothing enforced that,
 # and an assistant that decided the guide was about code rather than about this
 # task edited the repository without it - which is the failure this exists to
 # make impossible rather than merely discouraged.
@@ -88,8 +89,7 @@ gate)
 		cat <<-REASON
 		Read doc/itop-extension-guide.md before editing this repository - §0
 		("Repository context - MUST read first") and "Using this guide", rules 1
-		to 8. AGENTS.md asks for it and nothing loads it for you, so this hook
-		asks instead. It governs documentation-only changes as much as code:
+		to 8. Nothing loads it for you, so this hook asks instead. It governs documentation-only changes as much as code:
 		§0 makes listing doc/ and .github/ a precondition for adding any
 		document here. Read it, then repeat this edit - the gate opens for the
 		rest of the session.

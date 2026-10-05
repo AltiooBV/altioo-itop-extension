@@ -49,8 +49,9 @@ jobs:
   # download, full setup, per version - on a tree whose unit suite is red.
   #
   # One PHP version, not the matrix. The question here is "is this tree worth
-  # installing"; "does it work on 8.3 and 8.4" is ci.yml's question and is
-  # answered in parallel with this whole workflow.
+  # installing", asked on the declared floor; "does it work on the rest of the
+  # range" is ci.yml's question and is answered in parallel with this whole
+  # workflow.
   unit:
     name: Unit suite (gate)
     # Needs composer.json/extension.xml, which only an extension has; in the
@@ -62,9 +63,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
           tools: composer:v2
 
@@ -89,9 +93,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
 
       - id: resolve

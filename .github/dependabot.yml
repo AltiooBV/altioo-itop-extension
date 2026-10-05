@@ -16,11 +16,9 @@ updates:
   # The extension's own dependencies. composer.lock is committed and vendor/ is
   # built from it, so what lands here is what an operator ends up installing.
   #
-  # mcp/sdk is the one to read rather than merge: it is pre-1.0, so a minor
-  # bump is a breaking change by semver's own rules for 0.x, and
-  # doc/security-summary.md states that an SDK upgrade is treated as a release
-  # of its own with the test suite as the gate. Dependabot opens the PR; a
-  # person decides.
+  # A pre-1.0 dependency is the one to read rather than merge: a minor bump
+  # is a breaking change by semver's own rules for 0.x. Dependabot opens the
+  # PR; a person decides.
   - package-ecosystem: "composer"
     directory: "/"
     schedule:
@@ -29,8 +27,8 @@ updates:
       time: "06:00"
     # A newly published version is not proposed until it has been out this
     # long -- a quarantine against a release that turns out compromised or
-    # broken in its first days, which is exactly the shape mcp/sdk matters in:
-    # pre-1.0 and vendored into the archive every operator unzips.
+    # broken in its first days, which matters most for a dependency vendored
+    # into the archive every operator unzips.
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -76,11 +74,3 @@ updates:
     labels:
       - "dependencies"
       - "ci"
-
-# doc/example-pack is deliberately absent. It carries its own composer.json but
-# its composer.lock is gitignored on purpose - the pack is a template, and a
-# lock committed in doc/ would pin whichever versions were current when it was
-# last touched onto every reader who follows its README. Dependabot updating a
-# lock that is not supposed to exist would defeat that. ci.yml runs the pack's
-# own `composer install` on every change, which is what actually keeps it
-# resolvable.
