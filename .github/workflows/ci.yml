@@ -1,8 +1,11 @@
 name: CI
 
-# The claim on the Hub listing is "tested on PHP 8.2, 8.3 and 8.4". This is
-# what makes that claim checkable by someone who is deciding whether to trust
-# the extension with their CMDB.
+# A listing or a README that says "tested on PHP <floor> to <ceiling>" is a
+# claim. This is what makes it checkable by someone who is deciding whether to
+# trust the extension with their CMDB. The range is the one
+# .github/itop-support.json declares, read by tools/ci/php-range.sh; nothing in
+# this file names a PHP version except the lint job, whose answer does not
+# depend on one.
 #
 # This is where the PHP matrix question is answered. itop-matrix.yml repeats the
 # unit suite once, on one version, as its own gate - a workflow cannot depend on
@@ -136,20 +139,35 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -color
 
+  # The claimed range, as a matrix the unit suite can run over.
+  php:
+    name: Declared PHP range
+    # Needs .github/itop-support.json filled in, which only an extension has; in
+    # the template repository template-selftest.yml runs the harness instead.
+    if: github.repository != 'AltiooBV/altioo-itop-extension'
+    runs-on: ubuntu-latest
+    outputs:
+      floor: ${{ steps.php.outputs.floor }}
+      matrix: ${{ steps.php.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: php
+        run: tools/ci/php-range.sh | tee -a "$GITHUB_OUTPUT"
+
   tests:
     name: Unit suite on PHP ${{ matrix.php }}
-    # Needs composer.json/extension.xml, which only an extension has; in the
-    # template repository template-selftest.yml runs the harness instead.
-    if: github.repository != 'AltiooBV/altioo-itop-extension'
+    needs: php
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # The range declared in composer.json: floor 8.2 because the locked
-        # dependencies require it - symfony/uid and webmozart/assert - rather
-        # than because iTop does, iTop 3.2's own floor being 8.1. Ceiling 8.4
-        # because no iTop branch validates 8.5.
-        php: ['8.2', '8.3', '8.4']
+        # Every minor from the floor to the ceiling .github/itop-support.json
+        # declares. Keep composer.json's "php" constraint and its
+        # config.platform.php pin on the same floor.
+        php: ${{ fromJson(needs.php.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -170,16 +188,16 @@ jobs:
         run: composer install --no-interaction --no-progress
 
       # Checked against the PHP this job actually runs, which is the point of
-      # running it three times: it proves the one committed lock is installable
-      # on every version the extension claims, extensions included.
+      # running it once per version: it proves the one committed lock is
+      # installable on every version the extension claims, extensions included.
       #
       # It does NOT read config.platform.php - that override applies when
-      # `composer update` resolves, not here. Verified 2026-09-19: this step
-      # reports the real runtime (8.2.33 on the 8.2 job, 8.4.25 on the 8.4 one),
-      # not the pinned 8.2.0. The two do different jobs and the pin is the
-      # reason this step can pass on 8.2 at all - drop it and an update run on a
-      # developer's 8.4 resolves symfony/uid to a release needing >=8.4.1, which
-      # this step then fails on 8.2 and 8.3.
+      # `composer update` resolves, not here: this step reports the real
+      # runtime, not the pinned floor. The two do different jobs, and the pin is
+      # the reason this step can pass on the floor at all - drop it and an
+      # update run on a developer's newer PHP may resolve a dependency to a
+      # release that needs that newer PHP, which this step then fails on every
+      # version below it.
       - name: Check platform requirements
         run: composer check-platform-reqs
 
@@ -197,26 +215,28 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
           tools: composer:v2
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
 
-      # Advisories against the locked versions. mcp/sdk is pre-1.0 and vendored
-      # into the archive, so this is the check that a shipped dependency has not
-      # gone bad since the last release.
+      # Advisories against the locked versions. vendor/ is built from the lock
+      # and shipped inside the archive, so this is the check that a shipped
+      # dependency has not gone bad since the last release.
       - name: composer audit
         run: composer audit --locked
 
   # phpcs (the lint job) is a coding-standard linter, not a security scanner,
   # and CodeQL has no PHP support. Psalm's taint-analysis flag would be the
-  # relevant feature for a JSON-RPC surface that reaches MetaModel and
-  # UserRights directly (doc/security-summary.md §4), but it is not run here
-  # (psalm.xml explains why), so this job is plain type-correctness analysis,
+  # relevant feature for code that takes request input to MetaModel or
+  # UserRights, but it is not run here (psalm.xml explains why), so this job is plain type-correctness analysis,
   # not vulnerability scanning. The progpilot job below is what looks for a
   # vulnerability class in src/.
   # Both this job and the next scan src/. An extension with no hand-written
@@ -234,10 +254,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        if: hashFiles('src/**/*.php') != ''
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         if: hashFiles('src/**/*.php') != ''
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
           # Build tooling, installed the way this job's neighbour installs
           # phpcs: composer.lock ships inside the release archive and vendor/
@@ -261,7 +285,9 @@ jobs:
       # scan's scope to connect, so it would report nothing either way.
       - name: Static analysis over src/
         if: hashFiles('src/**/*.php') != ''
-        run: psalm --php-version=8.2
+        env:
+          PHP_FLOOR: ${{ steps.php.outputs.floor }}
+        run: psalm --php-version="$PHP_FLOOR"
 
   # A real vulnerability-class scanner, chosen from a measured four-way
   # comparison (Progpilot, phpcs-security-audit, Semgrep p/php, a
@@ -296,10 +322,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        if: hashFiles('src/**/*.php') != ''
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         if: hashFiles('src/**/*.php') != ''
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
           tools: composer:v2
 
@@ -326,9 +356,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - id: php
+        run: tools/ci/php-range.sh >> "$GITHUB_OUTPUT"
+
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.2'
+          php-version: ${{ steps.php.outputs.floor }}
           coverage: none
           tools: composer:v2
 
@@ -338,38 +371,10 @@ jobs:
       - name: Build production vendor tree
         run: composer install --no-dev --no-interaction --no-progress --optimize-autoloader
 
-      - name: The archive carries its documentation and its tests
-        run: |
-          set -e
-          for f in README.md SECURITY.md CHANGELOG.md LICENSE \
-                   vendor/autoload.php tests/php-unit-tests/bootstrap.php; do
-            test -e "$f" || { echo "missing from the package: $f"; exit 1; }
-          done
-          # An extension with an HTTP entry point adds its own guard files to
-          # this list - .htaccess and web.config are this module's entire
-          # HTTP guard where one exists, and a guard missing from the archive
-          # does not fail closed.
-          if grep -qxE '(README\.md|doc|LICENSE|SECURITY\.md|CHANGELOG\.md|tests)' exclude.txt; then
-            echo "exclude.txt lists a file that must ship; remove it from exclude.txt"
-            exit 1
-          fi
-          test ! -d vendor/phpunit || { echo "require-dev leaked into vendor/"; exit 1; }
-
-      # Exercised on every change rather than only at a tag: a bill of
-      # materials that first runs during a release is one that first fails
-      # during a release. The release workflow ships what this proves buildable.
-      - name: The bill of materials and licence inventory build
-        run: |
-          set -e
-          composer sbom > /tmp/sbom.json
-          composer licenses --no-dev --format=json > /tmp/licenses.json
-          php -r 'json_decode(file_get_contents("/tmp/sbom.json"), true, 512, JSON_THROW_ON_ERROR);'
-          # Literal PHP passed to `php -r`; $a/$n are PHP variables, not shell ones.
-          # shellcheck disable=SC2016
-          php -r '
-            $a = json_decode(file_get_contents("/tmp/sbom.json"), true);
-            // An extension with no production dependency has an empty list,
-            // which is a correct SBOM; a missing list is a broken one.
-            if (!is_array($a["components"] ?? null)) { fwrite(STDERR, "the SBOM has no components list\n"); exit(1); }
-            echo count($a["components"]), " production dependencies inventoried\n";
-          '
+      # Exercised on every change rather than only at a tag: an archive that
+      # first builds during a release is one that first fails during a
+      # release. The same script release.yml runs - the bill of materials, the
+      # archive, and what it must and must not contain - so what this proves
+      # buildable is what a release publishes.
+      - name: Build and check the archive
+        run: tools/ci/build-archive.sh

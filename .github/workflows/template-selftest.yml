@@ -53,3 +53,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: '"$RUNNER_TEMP/selftest/tools/ci/local/run.sh" matrix 3.2 8.2'
+
+      # ci.yml's package job and release.yml's build job both run this script.
+      # Neither runs here (no extension.xml in this repository), and the
+      # release list once named one extension's files and refused every other
+      # one - unnoticed, because nothing exercised it before a tag. Last, so
+      # the archive and its inventory are not in the tree run.sh copies.
+      - name: Release archive (ci.yml package, release.yml build)
+        working-directory: ${{ runner.temp }}/selftest
+        run: |
+          set -euo pipefail
+          composer install --no-dev --no-interaction --no-progress --optimize-autoloader
+          tools/ci/build-archive.sh
