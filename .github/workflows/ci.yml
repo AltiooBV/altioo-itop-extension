@@ -227,16 +227,17 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
 
-      # Advisories against the locked versions. vendor/ is built from the lock
-      # and shipped inside the archive, so this is the check that a shipped
+      # Advisories against the locked versions. Production dependencies are
+      # vendored into the archive, so this is the check that a shipped
       # dependency has not gone bad since the last release.
       - name: composer audit
         run: composer audit --locked
 
   # phpcs (the lint job) is a coding-standard linter, not a security scanner,
   # and CodeQL has no PHP support. Psalm's taint-analysis flag would be the
-  # relevant feature for code that takes request input to MetaModel or
-  # UserRights, but it is not run here (psalm.xml explains why), so this job is plain type-correctness analysis,
+  # relevant feature for code that takes request input to MetaModel and
+  # UserRights, but it is not run here (psalm.xml explains why, and what to
+  # measure before changing that), so this job is plain type-correctness analysis,
   # not vulnerability scanning. The progpilot job below is what looks for a
   # vulnerability class in src/.
   # Both this job and the next scan src/. An extension with no hand-written
@@ -277,24 +278,23 @@ jobs:
         if: hashFiles('src/**/*.php') != ''
         run: composer install --no-interaction --no-progress
 
-      # Blocking: psalm-baseline.xml holds every finding this had on the day
-      # it was adopted, so a green run here means no *new* issue, not zero
-      # issues. See psalm.xml for what is suppressed and why, and for why
-      # this runs plain rather than with the taint-analysis flag: measured,
-      # the flag does not hang here, but it has no source or sink in this
-      # scan's scope to connect, so it would report nothing either way.
+      # Blocking: psalm-baseline.xml holds every finding accepted when it was
+      # last regenerated - none, as the template ships it - so a green run
+      # here means no *new* issue, not necessarily zero issues. See psalm.xml
+      # for what is suppressed and why, and for why this runs plain rather
+      # than with the taint-analysis flag.
       - name: Static analysis over src/
         if: hashFiles('src/**/*.php') != ''
         env:
           PHP_FLOOR: ${{ steps.php.outputs.floor }}
         run: psalm --php-version="$PHP_FLOOR"
 
-  # A real vulnerability-class scanner, chosen from a measured four-way
-  # comparison (Progpilot, phpcs-security-audit, Semgrep p/php, a
+  # A real vulnerability-class scanner, chosen in altioo-mcp from a measured
+  # four-way comparison (Progpilot, phpcs-security-audit, Semgrep p/php, a
   # hand-written token check) run against a control file planting 7 known
   # vulnerability classes: Progpilot caught 6/7 with CWE ids and zero false
-  # positives on src/. Semgrep caught fewer (4/7) at the highest cost
-  # (container + live rule feed) and is deliberately not used here.
+  # positives on that module's src/. Semgrep caught fewer (4/7) at the
+  # highest cost (container + live rule feed) and is deliberately not used.
   #
   # Build tooling, not a dependency, for the same reason psalm and phpcs are
   # installed outside the project: composer.lock ships inside the release
@@ -308,8 +308,8 @@ jobs:
   # exits non-zero when that array is non-empty - verified directly against
   # both a clean src/ (exit 0) and the control file above (exit 1, all 6
   # taint-style classes reported) - so the plain exit code is a real gate,
-  # not one that always passes. Measured at ~6s over 70 files in this
-  # container; timeout-minutes is generous around that.
+  # not one that always passes. Measured at ~6s over altioo-mcp's 70 files;
+  # timeout-minutes is generous around that.
   progpilot:
     name: Vulnerability scan (Progpilot)
     # Needs composer.json/extension.xml, which only an extension has; in the
