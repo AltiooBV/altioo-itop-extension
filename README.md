@@ -28,7 +28,7 @@ any other specific module.
 
    Start with `tools/instantiate.sh`, which fills in every `{{PLACEHOLDER}}`
    token this template carries - the module code, the GitHub org, the
-   contact mailboxes, the copyright holder. What it cannot fill in - the
+   contact mailboxes, the supported iTop branch and PHP range. What it cannot fill in - the
    extension's own code, its README, its threat model, its changelog - is
    listed in the same file.
 3. Read `doc/itop-extension-guide.md` before writing the first line of

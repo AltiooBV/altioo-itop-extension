@@ -261,7 +261,7 @@ Paths confirmed at 3.2.2. Stable across several majors, but confirm on your bran
 
 ## Licence
 
-Copyright © {{YEAR}} {{COPYRIGHT_HOLDER}}. Licensed under
+Copyright © 2026 Altioo. Licensed under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), as a companion to
 [`itop-extension-guide.md`](itop-extension-guide.md).
 

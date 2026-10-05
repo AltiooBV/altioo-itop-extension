@@ -27,7 +27,6 @@ git -C "$ROOT" archive HEAD | tar -x -C "$TARGET"
 	--vendor-name "Altioo" \
 	--security-email security@example.invalid \
 	--conduct-email conduct@example.invalid \
-	--copyright-holder "Altioo" \
 	--itop-branch 3.2 \
 	--php-floor 8.2 \
 	--php-ceiling 8.4 >/dev/null

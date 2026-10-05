@@ -16,7 +16,6 @@ tools/instantiate.sh \
   --vendor-name "My Org" \
   --security-email security@example.com \
   --conduct-email conduct@example.com \
-  --copyright-holder "My Org" \
   --itop-branch 3.2 \
   --php-floor 8.2 \
   --php-ceiling 8.4

@@ -17,7 +17,6 @@
 #     --vendor-name "My Org" \
 #     --security-email security@example.com \
 #     --conduct-email conduct@example.com \
-#     --copyright-holder "My Org" \
 #     --itop-branch 3.2 \
 #     --php-floor 8.2 \
 #     --php-ceiling 8.4
@@ -39,8 +38,6 @@ VENDOR=""
 VENDOR_NAME=""
 SECURITY_EMAIL=""
 CONDUCT_EMAIL=""
-COPYRIGHT_HOLDER=""
-YEAR="$(date +%Y)"
 ITOP_BRANCH=""
 PHP_FLOOR=""
 PHP_CEILING=""
@@ -53,8 +50,6 @@ while [ $# -gt 0 ]; do
 	--vendor-name) VENDOR_NAME="$2"; shift 2 ;;
 	--security-email) SECURITY_EMAIL="$2"; shift 2 ;;
 	--conduct-email) CONDUCT_EMAIL="$2"; shift 2 ;;
-	--copyright-holder) COPYRIGHT_HOLDER="$2"; shift 2 ;;
-	--year) YEAR="$2"; shift 2 ;;
 	--itop-branch) ITOP_BRANCH="$2"; shift 2 ;;
 	--php-floor) PHP_FLOOR="$2"; shift 2 ;;
 	--php-ceiling) PHP_CEILING="$2"; shift 2 ;;
@@ -63,8 +58,12 @@ while [ $# -gt 0 ]; do
 done
 
 for v in MODULE_CODE GITHUB_ORG VENDOR VENDOR_NAME SECURITY_EMAIL CONDUCT_EMAIL \
-         COPYRIGHT_HOLDER ITOP_BRANCH PHP_FLOOR PHP_CEILING; do
+         ITOP_BRANCH PHP_FLOOR PHP_CEILING; do
 	[ -n "${!v}" ] || { echo "missing --$(echo "$v" | tr '[:upper:]_' '[:lower:]-')" >&2; exit 1; }
+	# Escaped once here for the sed replacements below: a "/" ends the
+	# expression and an "&" stands for the matched token, so a vendor name
+	# such as "Smith & Co" would otherwise come out as "Smith {{VENDOR_NAME}} Co".
+	printf -v "$v" '%s' "$(printf '%s' "${!v}" | sed -e 's/[/&\]/\\&/g')"
 done
 
 echo "Substituting placeholders under $ROOT ..."
@@ -84,8 +83,6 @@ while IFS= read -r -d '' f; do
 		-e "s/{{VENDOR_NAME}}/${VENDOR_NAME}/g" \
 		-e "s/{{SECURITY_EMAIL}}/${SECURITY_EMAIL}/g" \
 		-e "s/{{CONDUCT_EMAIL}}/${CONDUCT_EMAIL}/g" \
-		-e "s/{{COPYRIGHT_HOLDER}}/${COPYRIGHT_HOLDER}/g" \
-		-e "s/{{YEAR}}/${YEAR}/g" \
 		-e "s/{{ITOP_BRANCH}}/${ITOP_BRANCH}/g" \
 		-e "s/{{PHP_FLOOR}}/${PHP_FLOOR}/g" \
 		-e "s/{{PHP_CEILING}}/${PHP_CEILING}/g" \
