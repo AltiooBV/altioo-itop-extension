@@ -64,8 +64,9 @@ project's real answers on dependencies, formatting and supported versions.
    administrator reads before scheduling a maintenance window, and an entry written later is
    an entry written from a diff.
 5. **CI has to be green.** It runs the lint, the unit suite across the PHP range, and installs
-   the module into every supported iTop branch — [doc/ci-itop-matrix.md](doc/ci-itop-matrix.md)
-   explains what each stage is actually asking. Run `tools/ci/local/run.sh unit` before opening
+   the module into every supported iTop branch — each stage of
+   [itop-matrix.yml](https://github.com/{{GITHUB_ORG}}/{{MODULE_CODE}}/blob/main/.github/workflows/itop-matrix.yml) says in its comments what it is
+   actually asking. Run `tools/ci/local/run.sh unit` before opening
    a pull request and you will not learn it from CI.
 6. **Review is by a maintainer**, and the merge is a maintainer's. History is not rewritten
    after review — see [How this extension is built](#how-this-extension-is-built) for why that
@@ -94,7 +95,9 @@ ITOP_ROOT=/path/to/itop/web composer test:integration
 
 If you would rather not keep an iTop of your own, `tools/ci/install-itop.sh` downloads a
 packaged release, adds the harness from the matching tag, and installs this module into it with
-iTop's unattended setup — the same script CI uses. [doc/ci-itop-matrix.md](doc/ci-itop-matrix.md) has the commands.
+iTop's unattended setup — the same script CI uses. The head of
+[tools/ci/local/run.sh](https://github.com/{{GITHUB_ORG}}/{{MODULE_CODE}}/blob/main/tools/ci/local/run.sh) has the commands, run in containers so nothing
+is installed on your machine.
 
 New behaviour comes with a test. A fix comes with the test that would have caught it.
 

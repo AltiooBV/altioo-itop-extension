@@ -57,6 +57,17 @@ any other specific module.
 tests - these are what make an extension *that* extension, not boilerplate.
 `TEMPLATE-CHECKLIST.md` says what to do about each.
 
+## Reporting a vulnerability in this template
+
+`SECURITY.md` here is the template for *your* extension's policy: until
+`tools/instantiate.sh` and you have filled it in, it names no address anyone
+reads. A vulnerability in the template itself - the CI harness, the release
+workflow, `tools/` - goes privately to
+[AltiooBV/altioo-itop-extension's advisory form](https://github.com/AltiooBV/altioo-itop-extension/security/advisories/new),
+never to a public issue. Every extension created from the template carries
+the same harness, so a fix here is announced with what each of them has to
+change.
+
 ## Provenance
 
 This template was extracted from

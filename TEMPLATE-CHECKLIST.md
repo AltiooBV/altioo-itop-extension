@@ -64,13 +64,25 @@ template after this script was last touched, and needs the same treatment.
   scripts work out of the box, but the prose walking through what each stage
   asks still needs writing (or porting and genericising from a sibling
   repository such as `altioo-mcp`, whose versions are close to generic
-  already).
+  already). Until `doc/ci-itop-matrix.md` exists, `CONTRIBUTING.md` points
+  at `.github/workflows/itop-matrix.yml` and `tools/ci/local/run.sh` for the
+  same ground; point it at the document once it does.
+- **Write `doc/security-summary.md`** before the first public release:
+  `doc/itop-extension-guide.md` §9.8 lists what an approver asks every vendor
+  (bill of materials, provenance, vulnerability process, footprint, data
+  processing), and this is where it is answered once instead of per client.
+  The release workflow produces the evidence - the checksum, the provenance
+  and SBOM attestations - but not the page that tells an approver where it
+  is and how to verify it.
 
 ## 3. Decide `exclude.txt` for every file you add
 
 Not optional, and easy to forget precisely because forgetting is silent: a
 new root-level or `doc/` file that nobody classified ships to a customer
-instance by default. `doc/itop-extension-guide.md` §9.1 and `AGENTS.md` §4
+instance by default. Write each entry with a leading `/`: rsync matches an
+entry without one at any depth, so `build` would also drop `src/build/` and
+every `vendor/<package>/build/`. `tools/ci/build-archive.sh` refuses an
+unanchored entry. `doc/itop-extension-guide.md` §9.1 and `AGENTS.md` §4
 (if you copy one, see below) say why.
 
 ## 4. Nothing to delete for what this extension does not have
@@ -82,16 +94,24 @@ a datamodel-only package keeps every file here unchanged:
 |---|---|---|
 | hand-written PHP under `src/` | Psalm and Progpilot (`ci.yml`) | `src/**/*.php` |
 | integration suite | that step (`itop-matrix.yml`, `upgrade.yml`, `run.sh`) | `tests/php-unit-tests/Integration/` |
-| HTTP entry point | `http-smoke.sh` | `index.php` at the root |
+| HTTP entry point | `http-smoke.sh`, and the `.htaccess`/`web.config` requirement (`build-archive.sh`) | `index.php` at the root |
 | upgrade fixture | the seed/verify steps (`upgrade.yml`) | `tools/ci/upgrade-fixture.php` |
 | production dependency | nothing - an empty SBOM is accepted | `composer sbom` |
 
 An extension that does have an entry point: `http-smoke.sh` requests
-`env-<env>/<module code>/index.php` and `extensions/<module code>/index.php`,
-and `.github/workflows/ci.yml`'s `package` job comment names `.htaccess` and
-`web.config` as the guard files to add to its required-file list.
+`env-<env>/<module code>/index.php` and `extensions/<module code>/index.php`
+and checks only that both answer without a server error, and
+`tools/ci/build-archive.sh` then requires `.htaccess` and `web.config` in the
+archive. What the entry point itself must do goes in
+`tools/ci/checks/http-smoke.sh` (section 5).
 
-## 5. Write `tools/ci/checks/module-smoke.php` and `tools/ci/upgrade-fixture.php`
+The PHP versions follow `.github/itop-support.json` too: every workflow, and
+`run.sh`'s defaults, take the floor, the ceiling and the unit matrix from it
+through `tools/ci/php-range.sh`. Keep `composer.json`'s `"php"` constraint and
+its `config.platform.php` pin on the same floor; nothing else needs editing
+when the range moves.
+
+## 5. Write `tools/ci/checks/module-smoke.php`, `tools/ci/checks/http-smoke.sh` and `tools/ci/upgrade-fixture.php`
 
 Deliberately not included: they are this extension's own post-setup checks
 and upgrade fixture, the way `itop-smoke.php`'s split in `altioo-mcp` (see
@@ -104,6 +124,14 @@ needs the same kind of extension-specific rewrite; there is no generic
 version to copy. Both are optional for an extension that stores nothing: the
 upgrade workflow then checks the upgraded instance with `itop-smoke.php`
 alone.
+
+`tools/ci/checks/http-smoke.sh` is the same split for an HTTP entry point.
+`http-smoke.sh` sources it, after its generic checks, with `BASE`,
+`ENDPOINT`, `ALT_ENDPOINT`, `ITOP_TOKEN` and `fail` in scope. Write in it what
+this entry point must do: refuse a call without a credential (§6.3), accept
+one with the token `module-smoke.php` minted - by setting `$sHttpSmokeToken` -
+and answer its own protocol. Without it, nothing checks that the entry point
+refuses an anonymous caller.
 
 ## 6. Point your own harness's instruction file at your own `AGENTS.md`
 
