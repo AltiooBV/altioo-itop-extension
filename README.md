@@ -1,4 +1,4 @@
-# {{VENDOR_NAME}} iTop extension template
+# Altioo iTop extension template
 
 A GitHub template repository for building an iTop extension - any kind:
 a console UI module, a background integration, a REST or MCP server, a
