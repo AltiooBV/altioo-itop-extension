@@ -82,6 +82,17 @@ while IFS= read -r -d '' f; do
 	chmod "$sMode" "$f"
 done < <(find "$ROOT" -type f -not -path '*/.git/*' -print0)
 
+# Dependabot's composer entry ships switched off: the template has no
+# composer.json, and the entry would fail there every week. An extension has
+# one, so the entry is switched on here - its "#~ " lines uncommented, and the
+# "#- " lines explaining why it was off deleted.
+DEPENDABOT="$ROOT/.github/dependabot.yml"
+if [ -f "$DEPENDABOT" ]; then
+	sMode=$(stat -c '%a' "$DEPENDABOT")
+	sed -i -e '/^#- /d' -e 's/^#~ //' -e 's/^#~$//' "$DEPENDABOT"
+	chmod "$sMode" "$DEPENDABOT"
+fi
+
 echo
 echo "Done. Anything this script did not know about is still a literal {{...}} token:"
 # {{PLACEHOLDER}} is how the docs name the convention, not a token, and this
