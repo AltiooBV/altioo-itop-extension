@@ -151,7 +151,9 @@ sha256sum "${name}.zip" > "${name}.zip.sha256"
 cat "${name}.zip.sha256"
 
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
-	echo "name=${name}" >> "$GITHUB_OUTPUT"
-	echo "module=${module}" >> "$GITHUB_OUTPUT"
-	echo "sha256=$(cut -d' ' -f1 "${name}.zip.sha256")" >> "$GITHUB_OUTPUT"
+	{
+		echo "name=${name}"
+		echo "module=${module}"
+		echo "sha256=$(cut -d' ' -f1 "${name}.zip.sha256")"
+	} >> "$GITHUB_OUTPUT"
 fi
