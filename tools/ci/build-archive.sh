@@ -84,16 +84,21 @@ rsync -a --exclude-from=exclude.txt \
 cp sbom.cyclonedx.json licenses.json "build/${module}/"
 
 # 5. What it must contain. Generic first: what every extension ships (§9.1,
-#    §9.3, §12.4). Then what follows from the tree: an extension with an HTTP
-#    entry point ships the guard files that are that entry point's whole
-#    protection, and a guard missing from the archive does not fail closed -
-#    the compiled copy in env-<env>/ sits under a configuration that allows PHP
-#    for the whole subtree, so src/ and vendor/ would be served, quietly, from
-#    an instance that installed cleanly.
+#    §9.3, §12.4). Then what follows from the tree: the guard files, and both
+#    of them as soon as the tree has an entry point or either guard. They are
+#    the module's whole HTTP protection whether or not it has an entry point,
+#    and a guard missing from the archive does not fail closed - the compiled
+#    copy in env-<env>/ sits under a configuration that allows PHP for the
+#    whole subtree, so tests/ and vendor/ would be served, quietly, from an
+#    instance that installed cleanly. Each guard covers one web server, so one
+#    without the other leaves the module open on the other server.
 aRequired=(README.md SECURITY.md CHANGELOG.md CONTRIBUTING.md LICENSE
 	extension.xml "module.${module}.php" vendor/autoload.php
 	sbom.cyclonedx.json licenses.json)
-[ ! -f index.php ] || aRequired+=(index.php .htaccess web.config)
+[ ! -f index.php ] || aRequired+=(index.php)
+if [ -f index.php ] || [ -f .htaccess ] || [ -f web.config ]; then
+	aRequired+=(.htaccess web.config)
+fi
 # NOTICE, where it exists, is what scopes LICENSE; without it the archive
 # claims a single licence for files it does not cover.
 [ ! -f NOTICE ] || aRequired+=(NOTICE)
@@ -109,6 +114,18 @@ while IFS= read -r f; do
 	aRequired+=("${f#./}")
 done < <(find . \( -path ./vendor -o -path ./build -o -path ./tools -o -path './.*' \) -prune \
 	-o -type f \( -name '*.dict.*.xml' -o -name '*.dict.*.php' \) -print | sort -u)
+# Every file the module names by its installed path, <module code>/<path>: a
+# stylesheet or logo in the datamodel, an SCSS import, a script a page loads.
+# Nothing else lists them, and an exclude.txt entry that drops one installs
+# cleanly and breaks only the page that loads it. Only a name that is a file
+# here counts, so a version string ("<module code>/1.0.0") is not a path.
+while IFS= read -r f; do
+	[ -f "$f" ] && aRequired+=("$f")
+done < <(find . \( -path ./vendor -o -path ./build -o -path ./tools -o -path './.*' \) -prune \
+	-o -type f \( -name '*.xml' -o -name '*.php' -o -name '*.scss' -o -name '*.css' \
+	-o -name '*.js' -o -name '*.twig' -o -name '*.html' \) -print0 \
+	| xargs -0 -r grep -hoE "(^|[^A-Za-z0-9_.-])${module}/[A-Za-z0-9_./-]*[A-Za-z0-9_-]" \
+	| sed -E "s#^.?${module}/##" | sort -u)
 
 cd "build/${module}"
 aMissing=()

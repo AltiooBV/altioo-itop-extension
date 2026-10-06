@@ -173,9 +173,10 @@ the console still shows everything the module added — menus, profiles, setting
 `CONTRIBUTING.md`, `LICENSE` and `doc/` present; `tests/` present (iTop's own Extensions
 testsuite scans `env-production/`); `sbom.cyclonedx.json` and `licenses.json` present; no
 `.git`, no `tools/`, nothing Creative Commons. `tools/ci/build-archive.sh` checks all of it on
-the archive it builds — including every guard file, `NOTICE` and dictionary the source tree has
-— and the same script runs in `ci.yml`'s `package` job on every pull request and in
-`release.yml` on the tag, so the release cannot find a problem CI did not.
+the archive it builds — including every guard file, `NOTICE`, dictionary and asset named as
+`<module code>/<path>` that the source tree has — and the same script runs in `ci.yml`'s `package`
+job on every pull request and in `release.yml` on the tag, so the release cannot find a problem CI
+did not.
 
 ### What else the release changed
 
