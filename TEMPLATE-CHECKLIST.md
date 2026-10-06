@@ -94,7 +94,7 @@ An extension that does have an entry point: `http-smoke.sh` requests
 `env-<env>/<module code>/index.php` and `extensions/<module code>/index.php`
 and checks only that both answer without a server error, and
 `tools/ci/build-archive.sh` then requires `.htaccess` and `web.config` in the
-archive. What the entry point itself must do goes in
+archive - as it does for a module without one that ships either guard. What the entry point itself must do goes in
 `tools/ci/checks/http-smoke.sh` (section 5).
 
 The PHP versions follow `.github/itop-support.json` too: every workflow, and

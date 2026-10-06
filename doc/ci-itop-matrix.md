@@ -53,10 +53,10 @@ have:
 | entry-point checks of its own | everything after the generic half of `http-smoke.sh` | `tools/ci/checks/http-smoke.sh` |
 | upgrade fixture | the seed and verify steps (`upgrade.yml`) | `tools/ci/upgrade-fixture.php` |
 | production dependency | nothing — an empty SBOM is accepted | `composer sbom` |
-| `index.php` (and with it `.htaccess`, `web.config`), `NOTICE`, dictionaries, `tests/php-unit-tests/` | their check in the archive (`tools/ci/build-archive.sh`, run by `ci.yml`'s `package` job and by `release.yml`) | the file in the source tree |
+| `index.php`, `.htaccess` or `web.config` (any one requires both guards), `NOTICE`, dictionaries, `tests/php-unit-tests/`, a file the module names as `<module code>/<path>` (a datamodel stylesheet or logo, an SCSS import) | their check in the archive (`tools/ci/build-archive.sh`, run by `ci.yml`'s `package` job and by `release.yml`) | the file in the source tree |
 
 The last row runs the other way too: once the source tree *has* one of those files, the archive
-must carry it, so an `exclude.txt` entry that drops a guard file or a dictionary fails CI on the
+must carry it, so an `exclude.txt` entry that drops a guard file, a dictionary or an asset fails CI on the
 pull request rather than the release on the tag. Every `exclude.txt` entry starts with `/`: rsync
 matches one without it at any depth, and `build-archive.sh` refuses it.
 
