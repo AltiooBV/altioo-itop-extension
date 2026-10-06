@@ -1,39 +1,27 @@
 # Review personas — {{MODULE_CODE}}
 
-The persona list a review of this extension runs. It is the guide's own list —
-[`doc/itop-extension-guide.md`](../doc/itop-extension-guide.md), "Review procedure — persona
-passes" — in the guide's order, plus whatever passes this extension adds. Each guide pass is
-named rather than copied: its question, what to open and what it blocks are in the guide, which
-is the same text in every extension that adopts it.
-
-**Add a pass here, not in the guide,** when it comes from what this extension is rather than from
-what every iTop extension is: an endpoint an AI agent calls, a theme people with a screen reader
-use, an integration that sends data to another system. A pass that every extension could answer
-belongs in the guide instead, for all of them.
+A review here runs the guide's passes — [`doc/itop-extension-guide.md`](../doc/itop-extension-guide.md),
+"Review procedure — persona passes" — in the guide's order, with the passes below inserted where
+each says. The guide's passes are the personas every iTop extension faces, and are not repeated
+here; this file holds only what this extension adds.
 
 **Findings** go beside this file, one per review, named `<date>-<kind>.md`. They are gitignored —
 they name real gaps — and only this file is tracked. `exclude.txt` keeps the folder out of the
 release archive.
 
-## Red
+## Added passes
 
-1. **Red team** — the guide's.
+None yet.
 
-## Purple
+<!-- Add a pass here when it comes from what this extension is, not from what every iTop
+     extension is: an endpoint an AI agent calls (the agent, the people whose data it reads), a
+     theme people use with a screen reader (the portal end user), an SLA computation (the
+     contractor holding the client to the contract). A question every extension faces is a change
+     to the guide instead, for all of them.
 
-2. **Combodo / product fit** — the guide's.
-3. **Neighbouring extension** — the guide's.
-4. **Upgrading client** — the guide's.
-5. **Installing client / operator** — the guide's.
-6. **Auditor** — the guide's.
-7. **Downstream / competitor** — the guide's.
-
-## Blue
-
-8. **Blue team** — the guide's, over every finding above.
-9. **Maintainer** — the guide's.
-
-<!-- An added pass goes where its colour puts it - red first, purple between, blue last - and
-     carries a **Question**, what to **Open** in this repository, and what it **Blocks**:
-     release, delivery, or backlog. Mark it "added", and say in the paragraph at the top why
-     this extension needs it. -->
+     Each pass is a heading - name, colour, and where it goes, by the name of the guide pass it
+     follows: red first, purple between, blue last - then:
+       - **Question:** the one question it asks, from its point of view.
+       - **Open:** what to look at in this repository.
+       - **Blocks:** release, delivery, or backlog - and when.
+     Then say why at the top, in a line: what about this extension the guide does not see. -->
