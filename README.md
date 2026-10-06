@@ -1,4 +1,4 @@
-# {{VENDOR_NAME}} iTop extension template
+# Altioo iTop extension template
 
 A GitHub template repository for building an iTop extension - any kind:
 a console UI module, a background integration, a REST or MCP server, a
@@ -28,7 +28,7 @@ any other specific module.
 
    Start with `tools/instantiate.sh`, which fills in every `{{PLACEHOLDER}}`
    token this template carries - the module code, the GitHub org, the
-   contact mailboxes, the copyright holder. What it cannot fill in - the
+   contact mailboxes, the supported iTop branch and PHP range. What it cannot fill in - the
    extension's own code, its README, its threat model, its changelog - is
    listed in the same file.
 3. Read `doc/itop-extension-guide.md` before writing the first line of
@@ -41,6 +41,7 @@ any other specific module.
 | | |
 |---|---|
 | `doc/itop-extension-guide.md`, `doc/itop-branch-notes.md` | The development guide and its dated, branch-specific companion. Read both before the first change. |
+| `doc/ci-itop-matrix.md`, `doc/ci-upgrade.md`, `doc/release-checklist.md` | What each CI stage asks, how to run it locally, and the release procedure - generic, to adapt to the extension (`TEMPLATE-CHECKLIST.md` §2). |
 | `tools/ci/*`, `tools/ci/local/run.sh` | The CI harness: install/upgrade against a packaged iTop release, a smoke test, a Docker-based local runner that gives the same answer as Actions without spending Actions minutes. |
 | `.github/workflows/{ci,itop-matrix,upgrade,release}.yml` | The workflows that call the harness above. None of them names a module - `tools/ci/*` reads the module code from `extension.xml` at run time, so this tree carries over to a renamed or forked extension unchanged. |
 | `.github/itop-support.json` | The single declared-support file the CI matrix is computed from, and (if you wire up the equivalent of `altioo-mcp`'s `ModuleMetadataTest`) that every prose claim of supported versions should be checked against. |
@@ -56,6 +57,17 @@ any other specific module.
 `register.php`, `README.md`'s own content, `CHANGELOG.md`, and most unit
 tests - these are what make an extension *that* extension, not boilerplate.
 `TEMPLATE-CHECKLIST.md` says what to do about each.
+
+## Reporting a vulnerability in this template
+
+`SECURITY.md` here is the template for *your* extension's policy: until
+`tools/instantiate.sh` and you have filled it in, it names no address anyone
+reads. A vulnerability in the template itself - the CI harness, the release
+workflow, `tools/` - goes privately to
+[AltiooBV/altioo-itop-extension's advisory form](https://github.com/AltiooBV/altioo-itop-extension/security/advisories/new),
+never to a public issue. Every extension created from the template carries
+the same harness, so a fix here is announced with what each of them has to
+change.
 
 ## Provenance
 

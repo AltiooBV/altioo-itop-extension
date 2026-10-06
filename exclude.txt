@@ -52,29 +52,37 @@
 # analysis had on the day it was cut - accepted here with a reason in psalm.xml,
 # but without that context a map of where to look is all it would be on an
 # instance.
+#
+# Every entry below starts with "/" except the two macOS junk names. rsync
+# matches a pattern with no leading slash against the last part of a path at
+# any depth, so a bare "tools" or "build" also dropped src/build/ and
+# vendor/<package>/tools/ from the archive - silently, since nothing compared
+# the archive against the tree. The leading slash anchors the pattern to the
+# module root, which is what every entry here means. tools/ci/build-archive.sh
+# refuses an unanchored entry, so a new line cannot quietly bring that back.
 
 .DS_Store
 ._*
-.git
-.github
-.gitignore
-.gitattributes
-.idea
-.vscode
-.claude
-composer.phar
-phpunit.xml
-AGENTS.md
-CLAUDE.md
-doc/itop-extension-guide.md
-doc/itop-branch-notes.md
-CODE_OF_CONDUCT.md
-phpcs.xml.dist
-psalm.xml
-psalm-baseline.xml
-exclude.txt
-.phpunit.result.cache
-.phpunit.cache
+/.git
+/.github
+/.gitignore
+/.gitattributes
+/.idea
+/.vscode
+/.claude
+/composer.phar
+/phpunit.xml
+/AGENTS.md
+/CLAUDE.md
+/doc/itop-extension-guide.md
+/doc/itop-branch-notes.md
+/CODE_OF_CONDUCT.md
+/phpcs.xml.dist
+/psalm.xml
+/psalm-baseline.xml
+/exclude.txt
+/.phpunit.result.cache
+/.phpunit.cache
 
 # Screenshots for a Hub listing are listing material: they exist to be
 # uploaded to the Hub and re-uploaded the next time that page is edited, which
@@ -83,11 +91,11 @@ exclude.txt
 # README.md and doc/, excluding them costs a reader nothing - unless the
 # README embeds one, in which case move it up and drop this line: a shipped
 # README with a broken image is worse than a larger archive.
-assets/img/screenshots
-tools
-build
+/assets/img/screenshots
+/tools
+/build
 # The archive release.yml assembles and its checksum. Named after this
 # module's own extension code and version, neither of which this pattern
 # names, so it needs no edit if the module is ever renamed.
-*.zip
-*.zip.sha256
+/*.zip
+/*.zip.sha256

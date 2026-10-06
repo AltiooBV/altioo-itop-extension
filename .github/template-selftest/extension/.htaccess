@@ -1,0 +1,7 @@
+# Apache 2.4: nothing in this module is served except its entry point.
+# The self-test is never put behind Apache; this file is here because
+# tools/ci/build-archive.sh requires the guard files beside an index.php.
+Require all denied
+<Files "index.php">
+	Require all granted
+</Files>

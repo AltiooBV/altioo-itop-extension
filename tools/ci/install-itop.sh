@@ -16,11 +16,11 @@
 #
 # Not the git tree, and this is worth being explicit about because the git tree
 # is the tempting choice. Combodo does not assemble a release from that
-# repository alone: authent-token - which this module declares a dependency on -
-# is in no source tag, at 3.2.2 or at 3.2.3. Install from a source tree and the
-# setup finds the dependency unsatisfiable, drops this extension without failing,
-# and every check downstream is then testing an iTop that does not have the
-# module in it.
+# repository alone: some modules a release ships are in no source tag
+# (doc/itop-branch-notes.md names the ones known). Install from a source tree an
+# extension that depends on one of them, and the setup finds the dependency
+# unsatisfiable, drops the extension without failing, and every check downstream
+# is then testing an iTop that does not have the module in it.
 #
 # ITOP_TAG adds one thing to that release: tests/php-unit-tests/, which packaged
 # releases do not carry and which holds the ItopDataTestCase every integration
@@ -64,6 +64,7 @@ MODULE_SRC="${MODULE_SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 # records through the same path. Sourced here rather than where it is used, so
 # that a missing file fails in the first second of a run and not after an
 # install.
+# shellcheck source=itop-db.sh source-path=SCRIPTDIR
 . "$(dirname "${BASH_SOURCE[0]}")/itop-db.sh"
 ITOP_DIR="${ITOP_DIR:-${RUNNER_TEMP:-/tmp}/itop}"
 
@@ -100,12 +101,6 @@ curl -fsSL "$ITOP_ZIP_URL" -o "$STAGE/itop.zip"
 unzip -q "$STAGE/itop.zip" -d "$STAGE/tree"
 mv "$STAGE/tree/web" "$ITOP_DIR"
 test -f "$ITOP_DIR/approot.inc.php" || { echo "not an iTop tree: $ITOP_DIR"; exit 1; }
-
-# A release with no authent-token is one this module cannot be installed on, and
-# the setup would say so only in a log line. Better to say it here, where the
-# cause is one line away from the message.
-test -d "$ITOP_DIR/datamodels/2.x/authent-token" \
-  || echo "::warning::this release ships no authent-token module - the dry run below will say what that costs"
 
 # The test harness, from the matching tag. Only tests/php-unit-tests/, and only
 # over a release that does not have one: iTop's own code stays exactly as it was
