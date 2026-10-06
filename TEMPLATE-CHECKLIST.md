@@ -140,3 +140,18 @@ copy - `AGENTS.md` §5 in `altioo-mcp` explains why.
 `--itop-branch`. Add a second branch only once you have actually installed
 on it - the whole matrix, floor and ceiling of the PHP range - never before.
 The file's own `_comment` says why.
+
+## 8. Add this extension's own review passes
+
+`review/review-personas.md` ships as the guide's passes, named in the
+guide's order. Add the ones that come from what this extension is - an
+endpoint an AI agent calls, a theme people use with a screen reader, an
+integration that sends data elsewhere - each with its question, what to open
+here and what it blocks, where its colour puts it. Add nothing that every
+extension could answer: that is a change to the guide, for all of them.
+
+If you write an `AGENTS.md` (section 6), give it a `## Agent skills` section
+whose **Review** key points at this file, and say there that findings go
+beside it, gitignored. Only the list is tracked: `.gitignore` ignores
+everything else in `review/`, and `exclude.txt` keeps the folder out of the
+archive.
