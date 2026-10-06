@@ -35,6 +35,20 @@ sBroken="$(cd "$TARGET" && git -C "$ROOT" ls-tree -r HEAD | awk '$1=="100755"{pr
 	| while read -r f; do [ -x "$f" ] || echo "$f"; done)"
 [ -z "$sBroken" ] || { printf 'instantiate.sh dropped the executable bit on:\n%s\n' "$sBroken" >&2; exit 1; }
 
+# And Dependabot's composer entry, which ships switched off because the
+# template has no composer.json: an extension has one, so instantiate.sh must
+# have switched it on, and left a file Dependabot can still parse.
+python3 - "$TARGET/.github/dependabot.yml" <<'PY'
+import sys, yaml
+aEcosystems = [u["package-ecosystem"] for u in yaml.safe_load(open(sys.argv[1]))["updates"]]
+if "composer" not in aEcosystems:
+	sys.exit("instantiate.sh left Dependabot's composer entry switched off: %s" % aEcosystems)
+PY
+if grep -qE '^#[-~]( |$)' "$TARGET/.github/dependabot.yml"; then
+	echo "instantiate.sh left #- or #~ lines in .github/dependabot.yml" >&2
+	exit 1
+fi
+
 cp -R "$ROOT/.github/template-selftest/extension/." "$TARGET/"
 
 # composer.lock is resolved here rather than committed: a lock nobody updates
