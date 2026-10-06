@@ -16,7 +16,8 @@
 #
 # Leaves at the repository root: <module>-<version>.zip, its .sha256,
 # sbom.cyclonedx.json and licenses.json. When GITHUB_OUTPUT is set it also
-# writes name=<module>-<version> and module=<module> there.
+# writes name=<module>-<version>, module=<module> and sha256=<the zip's
+# digest> there.
 #
 # @copyright   Copyright (C) 2026 Altioo
 # @license     https://www.gnu.org/licenses/agpl-3.0.html AGPL-3.0-or-later
@@ -135,4 +136,5 @@ cat "${name}.zip.sha256"
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
 	echo "name=${name}" >> "$GITHUB_OUTPUT"
 	echo "module=${module}" >> "$GITHUB_OUTPUT"
+	echo "sha256=$(cut -d' ' -f1 "${name}.zip.sha256")" >> "$GITHUB_OUTPUT"
 fi
